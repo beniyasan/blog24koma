@@ -9,8 +9,8 @@ import type {
 
 // ===== Constants =====
 const ALLOWED_DOMAINS = ['note.com', 'qiita.com', 'zenn.dev'];
-const GEMINI_TEXT_MODEL = 'gemini-3-pro-preview';
-const GEMINI_IMAGE_MODEL = 'gemini-3-pro-image-preview';
+const DEFAULT_STORYBOARD_MODEL = 'gemini-2.5-flash';
+const DEFAULT_IMAGE_MODEL = 'gemini-3-pro-image-preview';
 const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta';
 
 // ===== CORS Headers =====
@@ -68,7 +68,7 @@ function validateRequest(body: unknown): Generate4KomaRequest {
         throw new ValidationError('Request body must be a JSON object');
     }
 
-    const { articleUrl, userPrompt, geminiApiKey } = body as Record<string, unknown>;
+    const { articleUrl, userPrompt, geminiApiKey, modelSettings } = body as Record<string, unknown>;
 
     if (typeof articleUrl !== 'string' || !articleUrl.trim()) {
         throw new ValidationError('articleUrl is required');
@@ -80,6 +80,28 @@ function validateRequest(body: unknown): Generate4KomaRequest {
 
     if (userPrompt !== undefined && typeof userPrompt !== 'string') {
         throw new ValidationError('userPrompt must be a string');
+    }
+
+    if (modelSettings !== undefined) {
+        if (typeof modelSettings !== 'object' || modelSettings === null) {
+            throw new ValidationError('modelSettings must be an object');
+        }
+
+        const { storyboardModel, imageModel } = modelSettings as Record<string, unknown>;
+
+        if (storyboardModel !== undefined) {
+            const validModels = ['gemini-2.0-flash', 'gemini-2.5-flash', 'gemini-3-pro-preview'];
+            if (!validModels.includes(storyboardModel as string)) {
+                throw new ValidationError('Invalid storyboardModel');
+            }
+        }
+
+        if (imageModel !== undefined) {
+            const validModels = ['gemini-3-pro-image-preview', 'gemini-2.5-flash-image'];
+            if (!validModels.includes(imageModel as string)) {
+                throw new ValidationError('Invalid imageModel');
+            }
+        }
     }
 
     // URL format validation
@@ -99,6 +121,10 @@ function validateRequest(body: unknown): Generate4KomaRequest {
         articleUrl: articleUrl.trim(),
         userPrompt: userPrompt?.trim() || '',
         geminiApiKey: geminiApiKey.trim(),
+        modelSettings: modelSettings || {
+            storyboardModel: DEFAULT_STORYBOARD_MODEL,
+            imageModel: DEFAULT_IMAGE_MODEL,
+        },
     };
 }
 
@@ -251,7 +277,8 @@ function decodeHtmlEntities(text: string): string {
 async function generateStoryboard(
     apiKey: string,
     article: ArticleContent,
-    userPrompt: string
+    userPrompt: string,
+    model: string
 ): Promise<StoryboardPanel[]> {
     const systemPrompt = `あなたは4コマ漫画の脚本家です。与えられた記事の内容を4コマ漫画の絵コンテに変換してください。
 
@@ -279,7 +306,7 @@ ${article.body}
 ${userPrompt ? `補足指示:\n${userPrompt}` : ''}`;
 
     const response = await fetch(
-        `${GEMINI_API_BASE}/models/${GEMINI_TEXT_MODEL}:generateContent?key=${apiKey}`,
+        `${GEMINI_API_BASE}/models/${model}:generateContent?key=${apiKey}`,
         {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -345,7 +372,7 @@ function parseStoryboardJson(text: string): StoryboardPanel[] {
 }
 
 // ===== Nano Banana Pro: Image Generation =====
-async function generate4KomaImage(apiKey: string, storyboard: StoryboardPanel[]): Promise<string> {
+async function generate4KomaImage(apiKey: string, storyboard: StoryboardPanel[], model: string): Promise<string> {
     // Build a detailed prompt for all 4 panels with dialogues
     const panelDescriptions = storyboard.map((panel) =>
         `【コマ${panel.panel}】\nシーン: ${panel.description}\nセリフ: 「${panel.dialogue}」`
@@ -373,7 +400,7 @@ async function generate4KomaImage(apiKey: string, storyboard: StoryboardPanel[])
 ${panelDescriptions}`;
 
     const response = await fetch(
-        `${GEMINI_API_BASE}/models/${GEMINI_IMAGE_MODEL}:generateContent?key=${apiKey}`,
+        `${GEMINI_API_BASE}/models/${model}:generateContent?key=${apiKey}`,
         {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -425,10 +452,19 @@ export const onRequestPost: PagesFunction = async (context) => {
         const article = await fetchArticle(body.articleUrl);
 
         // 4. Generate storyboard with Gemini
-        const storyboard = await generateStoryboard(body.geminiApiKey, article, body.userPrompt || '');
+        const storyboard = await generateStoryboard(
+            body.geminiApiKey, 
+            article, 
+            body.userPrompt || '',
+            body.modelSettings.storyboardModel
+        );
 
-        // 5. Generate 4-koma image with Nano Banana Pro (single image with all 4 panels)
-        const imageBase64 = await generate4KomaImage(body.geminiApiKey, storyboard);
+        // 5. Generate 4-koma image with selected image model
+        const imageBase64 = await generate4KomaImage(
+            body.geminiApiKey, 
+            storyboard,
+            body.modelSettings.imageModel
+        );
 
         // 6. Return response
         const response: Generate4KomaResponse = { storyboard, imageBase64 };
