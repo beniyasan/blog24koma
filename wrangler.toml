@@ -2,4 +2,4 @@ name = "blog24koma"
 compatibility_date = "2024-01-01"
 
 # Cloudflare Pages configuration
-pages_build_output_dir = "frontend/dist"
+# Output directory is root for Pages compatibility
