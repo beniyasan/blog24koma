@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import type { ModelSettings, StoryboardModel, ImageModel } from '../types';
 
-const STORAGE_KEY = 'blog4koma-model-settings';
+export const STORAGE_KEY = 'blog4koma-model-settings';
 
 const DEFAULT_SETTINGS: ModelSettings = {
   storyboardModel: 'gemini-2.5-flash',

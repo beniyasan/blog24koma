@@ -35,10 +35,19 @@ function App() {
                         onSubmit={handleGenerate}
                         loading={loading}
                         modelSettings={modelSettings}
-                        onModelSettingsChange={(settings) => {
-                            // Update both model settings when they change
-                            modelSettingsActions.updateStoryboardModel(settings.storyboardModel);
-                            modelSettingsActions.updateImageModel(settings.imageModel);
+                        onModelSettingsChange={(fullSettings) => {
+                            // 変更したプロパティだけ更新する
+                            const { storyboardModel, imageModel } = fullSettings;
+                            
+                            // storyboardModelが変更された場合のみ更新
+                            if (modelSettings.storyboardModel !== storyboardModel) {
+                                modelSettingsActions.updateStoryboardModel(storyboardModel);
+                            }
+                            
+                            // imageModelが変更された場合のみ更新  
+                            if (modelSettings.imageModel !== imageModel) {
+                                modelSettingsActions.updateImageModel(imageModel);
+                            }
                         }}
                     />
                 )}

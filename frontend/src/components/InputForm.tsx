@@ -6,7 +6,7 @@ interface InputFormProps {
     onSubmit: (data: Generate4KomaRequest) => void;
     loading: boolean;
     modelSettings?: ModelSettings;
-    onModelSettingsChange?: (settings: ModelSettings) => void;
+    onModelSettingsChange?: (fullSettings: ModelSettings) => void;
 }
 
 export function InputForm({ 
@@ -34,8 +34,17 @@ export function InputForm({
         setGeminiApiKey('');
     };
 
-    const handleModelSettingsChange = (settings: ModelSettings) => {
-        onModelSettingsChange?.(settings);
+    const handleModelSettingsChange = (settingType: string, value: string) => {
+        const currentSettings = modelSettings || {
+            storyboardModel: 'gemini-2.5-flash' as any,
+            imageModel: 'gemini-3-pro-image-preview' as any,
+        };
+        
+        const newSettings = {
+            ...currentSettings,
+            [settingType]: value as any,
+        };
+        onModelSettingsChange?.(newSettings);
     };
 
     const isValid = articleUrl.trim() && geminiApiKey.trim();
@@ -161,24 +170,11 @@ export function InputForm({
                 onClose={() => setIsModalOpen(false)}
                 storyboardModel={modelSettings?.storyboardModel || 'gemini-2.5-flash'}
                 imageModel={modelSettings?.imageModel || 'gemini-3-pro-image-preview'}
-                onStoryboardModelChange={(model) =>
-                    handleModelSettingsChange({
-                        storyboardModel: model as any,
-                        imageModel: modelSettings?.imageModel || 'gemini-3-pro-image-preview',
-                    })
-                }
-                onImageModelChange={(model) =>
-                    handleModelSettingsChange({
-                        storyboardModel: modelSettings?.storyboardModel || 'gemini-2.5-flash',
-                        imageModel: model as any,
-                    })
-                }
-                onReset={() =>
-                    handleModelSettingsChange({
-                        storyboardModel: 'gemini-2.5-flash',
-                        imageModel: 'gemini-3-pro-image-preview',
-                    })
-                }
+                onChange={handleModelSettingsChange}
+                onReset={() => {
+                    handleModelSettingsChange('storyboardModel', 'gemini-2.5-flash');
+                    handleModelSettingsChange('imageModel', 'gemini-3-pro-image-preview');
+                }}
             />
         </div>
     );

@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { STORYBOARD_MODELS, IMAGE_MODELS } from '../types';
 
 interface ModelSettingsModalProps {
@@ -5,8 +6,7 @@ interface ModelSettingsModalProps {
   onClose: () => void;
   storyboardModel: string;
   imageModel: string;
-  onStoryboardModelChange: (model: string) => void;
-  onImageModelChange: (model: string) => void;
+  onChange: (settingType: 'storyboardModel' | 'imageModel', value: string) => void;
   onReset: () => void;
 }
 
@@ -15,10 +15,22 @@ export function ModelSettingsModal({
   onClose,
   storyboardModel,
   imageModel,
-  onStoryboardModelChange,
-  onImageModelChange,
+  onChange,
   onReset,
 }: ModelSettingsModalProps) {
+  // モーダル内のローカル状態を管理
+  const [localStoryboardModel, setLocalStoryboardModel] = useState(storyboardModel);
+  const [localImageModel, setLocalImageModel] = useState(imageModel);
+
+  // 親からの変更を反映
+  useEffect(() => {
+    setLocalStoryboardModel(storyboardModel);
+  }, [storyboardModel]);
+
+  useEffect(() => {
+    setLocalImageModel(imageModel);
+  }, [imageModel]);
+
   if (!isOpen) return null;
 
   const handleOverlayClick = (e: React.MouseEvent) => {
@@ -30,6 +42,22 @@ export function ModelSettingsModal({
   const handleReset = () => {
     onReset();
     onClose();
+  };
+
+  const storyboardSelectHandler = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const newValue = e.target.value;
+    // ローカル状態を即時更新
+    setLocalStoryboardModel(newValue);
+    // 親コンポーネントに通知
+    onChange('storyboardModel', newValue);
+  };
+
+  const imageSelectHandler = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const newValue = e.target.value;
+    // ローカル状態を即時更新
+    setLocalImageModel(newValue);
+    // 親コンポーネントに通知
+    onChange('imageModel', newValue);
   };
 
   return (
@@ -50,8 +78,8 @@ export function ModelSettingsModal({
             </h3>
             <div className="model-select-wrapper">
               <select
-                value={storyboardModel}
-                onChange={(e) => onStoryboardModelChange(e.target.value)}
+                value={localStoryboardModel}
+                onChange={storyboardSelectHandler}
                 className="model-select"
               >
                 {Object.entries(STORYBOARD_MODELS).map(([value, config]) => (
@@ -63,7 +91,7 @@ export function ModelSettingsModal({
               <span className="model-select-arrow">▼</span>
             </div>
             <p className="model-description">
-              {STORYBOARD_MODELS[storyboardModel as keyof typeof STORYBOARD_MODELS].description}
+              {STORYBOARD_MODELS[localStoryboardModel as keyof typeof STORYBOARD_MODELS].description}
             </p>
           </div>
 
@@ -74,8 +102,8 @@ export function ModelSettingsModal({
             </h3>
             <div className="model-select-wrapper">
               <select
-                value={imageModel}
-                onChange={(e) => onImageModelChange(e.target.value)}
+                value={localImageModel}
+                onChange={imageSelectHandler}
                 className="model-select"
               >
                 {Object.entries(IMAGE_MODELS).map(([value, config]) => (
@@ -87,7 +115,7 @@ export function ModelSettingsModal({
               <span className="model-select-arrow">▼</span>
             </div>
             <p className="model-description">
-              {IMAGE_MODELS[imageModel as keyof typeof IMAGE_MODELS].description}
+              {IMAGE_MODELS[localImageModel as keyof typeof IMAGE_MODELS].description}
             </p>
           </div>
         </div>
