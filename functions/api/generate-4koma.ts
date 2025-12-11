@@ -164,16 +164,21 @@ interface ArticleContent {
 }
 
 async function fetchArticle(url: string): Promise<ArticleContent> {
+    console.log(`Fetching article from: ${url}`);
+    
     const response = await fetch(url, {
         headers: {
-            'User-Agent': 'Mozilla/5.0 (compatible; 4KomaBot/1.0)',
-            Accept: 'text/html',
+            'User-Agent': 'Mozilla/5.0 (compatible; 4KomaBot/1.0) AppleWebKit/537.36',
+            Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+            'Cache-Control': 'no-cache',
+            'Referer': 'https://blog4koma.com/',
         },
         redirect: 'follow',
+        signal: AbortSignal.timeout(10000), // 10秒タイムアウト
     });
 
     if (!response.ok) {
-        throw new FetchError(`Failed to fetch article: ${response.status}`);
+        throw new FetchError(`Failed to fetch article: ${response.status} ${url} (Type: ${response.headers.get('content-type')})`);
     }
 
     // Check final URL domain after redirects
@@ -181,7 +186,8 @@ async function fetchArticle(url: string): Promise<ArticleContent> {
     checkDomainWhitelist(finalUrl);
 
     const html = await response.text();
-    return parseArticleHtml(html, new URL(url).hostname);
+    console.log(`Fetched HTML length: ${html.length} characters from: ${finalUrl}`);
+    return parseArticleHtml(html, new URL(finalUrl).hostname);
 }
 
 function parseArticleHtml(html: string, hostname: string): ArticleContent {
@@ -191,20 +197,30 @@ function parseArticleHtml(html: string, hostname: string): ArticleContent {
 
     let body = '';
 
+    console.log(`Parsing article for hostname: ${hostname}`);
+
     // Domain-specific extraction
     if (hostname.includes('note.com')) {
         body = extractNoteContent(html);
+        console.log('Used note.com extraction');
     } else if (hostname.includes('qiita.com')) {
         body = extractQiitaContent(html);
+        console.log('Used qiita.com extraction');
     } else if (hostname.includes('zenn.dev')) {
         body = extractZennContent(html);
+        console.log('Used zenn.dev extraction');
     } else {
         body = extractGenericContent(html);
+        console.log('Used generic extraction');
     }
+
+    console.log(`Extracted body length: ${body.length} characters`);
 
     // Trim if too long (max 8000 chars for Gemini context)
     if (body.length > 8000) {
-        body = body.substring(0, 8000) + '...（省略）';
+        const truncatedBody = body.substring(0, 8000) + '...（省略）';
+        console.log(`Body truncated to ${truncatedBody.length} characters`);
+        body = truncatedBody;
     }
 
     return { title, body };
@@ -233,13 +249,34 @@ function extractQiitaContent(html: string): string {
 }
 
 function extractZennContent(html: string): string {
-    // zenn.dev article body
-    const match = html.match(/<div[^>]*class="[^"]*znc[^"]*"[^>]*>([\s\S]*?)<\/div>/i);
+    // Try multiple approaches for Zenn content extraction
+    
+    // Method 1: Try the primary znc class (main article content)
+    let match = html.match(/<div[^>]*class="[^"]*znc[^"]*"[^>]*>([\s\S]*?)<\/div>/i);
     if (match) return stripHtmlTags(match[1]);
 
-    // Fallback: try article tag
-    const articleMatch = html.match(/<article[^>]*>([\s\S]*?)<\/article>/i);
-    return articleMatch ? stripHtmlTags(articleMatch[1]) : extractGenericContent(html);
+    // Method 2: Try article tag
+    match = html.match(/<article[^>]*>([\s\S]*?)<\/article>/i);
+    if (match) return stripHtmlTags(match[1]);
+    
+    // Method 3: Try finding content within main section
+    match = html.match(/<main[^>]*>([\s\S]*?<\/main>)/i);
+    if (match) {
+        const mainContent = match[1];
+        // Look for any div with content-like classes within main
+        const contentMatch = mainContent.match(/<div[^>]*class="[^"]*(?:content|article|text)[^"]*"[^>]*>([\s\S]*?)<\/div>/i);
+        if (contentMatch) return stripHtmlTags(contentMatch[1]);
+        return stripHtmlTags(mainContent);
+    }
+    
+    // Method 4: Look for any paragraph content
+    const paragraphs = html.match(/<p[^>]*>([\s\S]{100,2000})<\/p>/gi);
+    if (paragraphs && paragraphs.length > 0) {
+        return paragraphs.map(p => stripHtmlTags(p)).join('\n\n');
+    }
+    
+    // Method 5: Fallback to generic content extraction
+    return extractGenericContent(html);
 }
 
 function extractGenericContent(html: string): string {
