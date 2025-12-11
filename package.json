@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "npm run dev --workspace=frontend",
-    "build": "npm run build --workspace=frontend && cp -r frontend/dist/* .",
+    "build": "npm run build --workspace=frontend",
     "preview": "npx wrangler pages dev ./frontend/dist --port 8788",
     "deploy": "npm run build",
     "deploy:pages": "npx wrangler pages deploy frontend/dist"
