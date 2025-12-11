@@ -163,13 +163,13 @@ export function InputForm({
                 imageModel={modelSettings?.imageModel || 'gemini-3-pro-image-preview'}
                 onStoryboardModelChange={(model) =>
                     handleModelSettingsChange({
-                        ...modelSettings,
                         storyboardModel: model as any,
+                        imageModel: modelSettings?.imageModel || 'gemini-3-pro-image-preview',
                     })
                 }
                 onImageModelChange={(model) =>
                     handleModelSettingsChange({
-                        ...modelSettings,
+                        storyboardModel: modelSettings?.storyboardModel || 'gemini-2.5-flash',
                         imageModel: model as any,
                     })
                 }
