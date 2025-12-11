@@ -1,6 +1,10 @@
 name = "blog24koma"
 compatibility_date = "2024-01-01"
+
+# Cloudflare Pages configuration
 pages_build_output_dir = "./frontend/dist"
+
+# Pages Functions are automatically detected from /functions directory
 
 [vars]
 ALLOWED_DOMAINS = "note.com,qiita.com,zenn.dev"
