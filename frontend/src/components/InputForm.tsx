@@ -1,15 +1,24 @@
 import { useState, FormEvent } from 'react';
-import type { Generate4KomaRequest } from '../types';
+import { ModelSettingsModal } from './ModelSettingsModal';
+import type { Generate4KomaRequest, ModelSettings } from '../types';
 
 interface InputFormProps {
     onSubmit: (data: Generate4KomaRequest) => void;
     loading: boolean;
+    modelSettings?: ModelSettings;
+    onModelSettingsChange?: (settings: ModelSettings) => void;
 }
 
-export function InputForm({ onSubmit, loading }: InputFormProps) {
+export function InputForm({ 
+    onSubmit, 
+    loading, 
+    modelSettings,
+    onModelSettingsChange 
+}: InputFormProps) {
     const [articleUrl, setArticleUrl] = useState('');
     const [userPrompt, setUserPrompt] = useState('');
     const [geminiApiKey, setGeminiApiKey] = useState('');
+    const [isModalOpen, setIsModalOpen] = useState(false);
 
     const handleSubmit = (e: FormEvent) => {
         e.preventDefault();
@@ -18,10 +27,15 @@ export function InputForm({ onSubmit, loading }: InputFormProps) {
             articleUrl: articleUrl.trim(),
             userPrompt: userPrompt.trim() || undefined,
             geminiApiKey: geminiApiKey.trim(),
+            modelSettings,
         };
 
         onSubmit(request);
         setGeminiApiKey('');
+    };
+
+    const handleModelSettingsChange = (settings: ModelSettings) => {
+        onModelSettingsChange?.(settings);
     };
 
     const isValid = articleUrl.trim() && geminiApiKey.trim();
@@ -74,19 +88,35 @@ export function InputForm({ onSubmit, loading }: InputFormProps) {
                         <label htmlFor="geminiApiKey" className="form-label">
                             Gemini API キー <span className="required">*</span>
                         </label>
-                        <div className="input-wrapper">
-                            <input
-                                type="password"
-                                id="geminiApiKey"
-                                className="form-input"
-                                placeholder="AIzaSy..."
-                                value={geminiApiKey}
-                                onChange={(e) => setGeminiApiKey(e.target.value)}
-                                required
+                        <div className="input-group">
+                            <div className="input-wrapper" style={{ flex: 1 }}>
+                                <input
+                                    type="password"
+                                    id="geminiApiKey"
+                                    className="form-input"
+                                    placeholder="AIzaSy..."
+                                    value={geminiApiKey}
+                                    onChange={(e) => setGeminiApiKey(e.target.value)}
+                                    required
+                                    disabled={loading}
+                                    autoComplete="off"
+                                />
+                            </div>
+                            <button
+                                type="button"
+                                className="model-settings-btn"
+                                onClick={() => setIsModalOpen(true)}
                                 disabled={loading}
-                                autoComplete="off"
-                            />
+                                title="モデル設定"
+                            >
+                                <span className="model-settings-icon">⚙️</span>
+                            </button>
                         </div>
+                        {modelSettings && (
+                            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 'var(--spacing-xs)' }}>
+                                絵コンテ: {modelSettings.storyboardModel}, 画像: {modelSettings.imageModel}
+                            </div>
+                        )}
                     </div>
 
                     <button
@@ -125,6 +155,31 @@ export function InputForm({ onSubmit, loading }: InputFormProps) {
                     </div>
                 </form>
             </div>
+
+            <ModelSettingsModal
+                isOpen={isModalOpen}
+                onClose={() => setIsModalOpen(false)}
+                storyboardModel={modelSettings?.storyboardModel || 'gemini-2.5-flash'}
+                imageModel={modelSettings?.imageModel || 'gemini-3-pro-image-preview'}
+                onStoryboardModelChange={(model) =>
+                    handleModelSettingsChange({
+                        storyboardModel: model as any,
+                        imageModel: modelSettings?.imageModel || 'gemini-3-pro-image-preview',
+                    })
+                }
+                onImageModelChange={(model) =>
+                    handleModelSettingsChange({
+                        storyboardModel: modelSettings?.storyboardModel || 'gemini-2.5-flash',
+                        imageModel: model as any,
+                    })
+                }
+                onReset={() =>
+                    handleModelSettingsChange({
+                        storyboardModel: 'gemini-2.5-flash',
+                        imageModel: 'gemini-3-pro-image-preview',
+                    })
+                }
+            />
         </div>
     );
 }

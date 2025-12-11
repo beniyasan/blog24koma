@@ -4,6 +4,7 @@ export interface Generate4KomaRequest {
   articleUrl: string;
   userPrompt?: string;
   geminiApiKey: string;
+  modelSettings?: ModelSettings;
 }
 
 export interface StoryboardPanel {
@@ -21,6 +22,43 @@ export interface Generate4KomaResponse {
   storyboard: StoryboardPanel[];
   imageBase64: string; // Single 4-panel comic image
 }
+
+// ===== Model Selection Types =====
+
+export interface ModelSettings {
+  storyboardModel: StoryboardModel;
+  imageModel: ImageModel;
+}
+
+export type StoryboardModel = 'gemini-2.0-flash' | 'gemini-2.5-flash' | 'gemini-3-pro-preview';
+
+export type ImageModel = 'gemini-3-pro-image-preview' | 'gemini-2.5-flash-image';
+
+export const STORYBOARD_MODELS: Record<StoryboardModel, { name: string; description: string }> = {
+  'gemini-2.0-flash': {
+    name: 'Gemini 2.0 Flash',
+    description: '最も高速・低コスト。シンプルな構成に最適です。'
+  },
+  'gemini-2.5-flash': {
+    name: 'Gemini 2.5 Flash',
+    description: 'バランス型。速度と品質の両立を目指します。'
+  },
+  'gemini-3-pro-preview': {
+    name: 'Gemini 3 Pro Preview',
+    description: '最も高性能。複雑な記事・創造的な表現に適しています。'
+  }
+};
+
+export const IMAGE_MODELS: Record<ImageModel, { name: string; description: string }> = {
+  'gemini-3-pro-image-preview': {
+    name: 'Gemini 3 Pro Image Preview',
+    description: '最高品質の画像生成。詳細な表現に優れています。'
+  },
+  'gemini-2.5-flash-image': {
+    name: 'Gemini 2.5 Flash Image',
+    description: '高速な画像生成。シンプルなコマに適しています。'
+  }
+};
 
 export type ErrorCode =
   | 'VALIDATION_ERROR'

@@ -3,10 +3,17 @@ import { ResultDisplay } from './components/ResultDisplay';
 import { LoadingSpinner } from './components/LoadingSpinner';
 import { ErrorDisplay } from './components/ErrorDisplay';
 import { useGenerate4Koma } from './hooks/useGenerate4Koma';
+import { useModelSettings } from './hooks/useModelSettings';
+import type { Generate4KomaRequest } from './types';
 import './App.css';
 
 function App() {
     const { result, loading, error, generate, reset } = useGenerate4Koma();
+    const { settings: modelSettings, ...modelSettingsActions } = useModelSettings();
+
+    const handleGenerate = (data: Generate4KomaRequest) => {
+        generate(data);
+    };
 
     return (
         <div className="app">
@@ -24,7 +31,16 @@ function App() {
 
             <main className="container">
                 {!result && !loading && (
-                    <InputForm onSubmit={generate} loading={loading} />
+                    <InputForm
+                        onSubmit={handleGenerate}
+                        loading={loading}
+                        modelSettings={modelSettings}
+                        onModelSettingsChange={(settings) => {
+                            // Update both model settings when they change
+                            modelSettingsActions.updateStoryboardModel(settings.storyboardModel);
+                            modelSettingsActions.updateImageModel(settings.imageModel);
+                        }}
+                    />
                 )}
 
                 {loading && <LoadingSpinner message="4コマ漫画を生成中..." />}
