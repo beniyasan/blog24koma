@@ -34,6 +34,13 @@
     display: none;
 }
 
+.header-note {
+    color: var(--text-muted);
+    font-size: 0.875rem;
+    font-weight: 500;
+    margin-top: var(--spacing-sm);
+}
+
 /* Comic Form Styles */
 .form-container {
     display: flex;
