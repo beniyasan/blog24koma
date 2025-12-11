@@ -6,7 +6,7 @@
     "dev": "npm run dev --workspace=frontend",
     "build": "npm run build --workspace=frontend",
     "preview": "npx wrangler pages dev ./frontend/dist --port 8788",
-    "deploy": "wrangler pages deploy frontend/dist"
+    "deploy": "npm run build && npx wrangler pages deploy frontend/dist"
   },
   "workspaces": [
     "frontend"
