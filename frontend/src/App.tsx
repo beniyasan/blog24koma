@@ -11,11 +11,7 @@ function App() {
     return (
         <div className="app">
             <header className="header">
-                <div className="hero-background">
-                    <div className="hero-gradient"></div>
-                </div>
                 <div className="hero-content">
-                    <div className="hero-icon">🎨</div>
                     <h1 className="header-title">4コマ生成</h1>
                     <p className="header-subtitle">
                         ブログ記事から4コマ漫画を自動生成
@@ -41,12 +37,12 @@ function App() {
 
             <footer className="footer">
                 <p>
-                    Powered by Gemini API •
+                    Powered by Gemini API |
                     <a
                         href="https://ai.google.dev/"
                         target="_blank"
                         rel="noopener noreferrer"
-                        style={{ color: 'var(--primary-light)', marginLeft: '4px' }}
+                        style={{ color: 'var(--primary)', marginLeft: '4px', fontWeight: 700 }}
                     >
                         Google AI for Developers
                     </a>
