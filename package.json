@@ -1,0 +1,17 @@
+{
+  "name": "blog24koma",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "npm run dev --workspace=frontend",
+    "build": "npm run build --workspace=frontend",
+    "preview": "npx wrangler pages dev ./frontend/dist --port 8788",
+    "deploy": "npm run build && npx wrangler pages deploy ./frontend/dist"
+  },
+  "workspaces": [
+    "frontend"
+  ],
+  "devDependencies": {
+    "wrangler": "^3.0.0"
+  }
+}
