@@ -12,31 +12,14 @@ function App() {
         <div className="app">
             <header className="header">
                 <div className="hero-background">
-                    <div className="hero-pattern"></div>
                     <div className="hero-gradient"></div>
                 </div>
                 <div className="hero-content">
                     <div className="hero-icon">🎨</div>
-                    <h1 className="header-title">
-                        <span className="title-gradient">4コマ生成</span>
-                    </h1>
+                    <h1 className="header-title">4コマ生成</h1>
                     <p className="header-subtitle">
                         ブログ記事から4コマ漫画を自動生成
                     </p>
-                    <div className="hero-features">
-                        <div className="feature-item">
-                            <span className="feature-icon">📝</span>
-                            <span>記事URLを入力</span>
-                        </div>
-                        <div className="feature-item">
-                            <span className="feature-icon">✨</span>
-                            <span>AIが4コマを生成</span>
-                        </div>
-                        <div className="feature-item">
-                            <span className="feature-icon">📱</span>
-                            <span>簡単に共有</span>
-                        </div>
-                    </div>
                 </div>
             </header>
 

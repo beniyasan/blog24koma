@@ -14,7 +14,6 @@ export function InputForm({ onSubmit, loading }: InputFormProps) {
     const handleSubmit = (e: FormEvent) => {
         e.preventDefault();
 
-        // Create request object
         const request: Generate4KomaRequest = {
             articleUrl: articleUrl.trim(),
             userPrompt: userPrompt.trim() || undefined,
@@ -22,8 +21,6 @@ export function InputForm({ onSubmit, loading }: InputFormProps) {
         };
 
         onSubmit(request);
-
-        // Clear API key after submission for security
         setGeminiApiKey('');
     };
 
@@ -56,14 +53,6 @@ export function InputForm({ onSubmit, loading }: InputFormProps) {
                                 disabled={loading}
                             />
                             <div className="input-icon">📄</div>
-                        </div>
-                        <div className="supported-sites">
-                            <span className="supported-label">対応サイト:</span>
-                            <div className="site-badges">
-                                <span className="site-badge">note.com</span>
-                                <span className="site-badge">qiita.com</span>
-                                <span className="site-badge">zenn.dev</span>
-                            </div>
                         </div>
                     </div>
 
