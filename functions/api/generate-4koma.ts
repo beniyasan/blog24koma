@@ -7,6 +7,11 @@ import type {
     ErrorCode,
 } from '../../frontend/src/types';
 
+// ===== Env Interface =====
+interface Env {
+    URL_LOGS: KVNamespace;
+}
+
 // ===== Constants =====
 const ALLOWED_DOMAINS = ['note.com', 'qiita.com', 'zenn.dev'];
 const DEFAULT_STORYBOARD_MODEL = 'gemini-2.5-flash';
@@ -469,12 +474,28 @@ ${panelDescriptions}`;
     return `data:${mimeType};base64,${imagePart.inlineData.data}`;
 }
 
+// ===== URL Logging =====
+async function logUrlToKV(kv: KVNamespace, url: string, type: 'blog' | 'movie'): Promise<void> {
+    try {
+        const key = `${Date.now()}-${crypto.randomUUID()}`;
+        const value = JSON.stringify({
+            url,
+            type,
+            timestamp: new Date().toISOString(),
+        });
+        await kv.put(key, value);
+    } catch (e) {
+        // Silently fail - don't break the main flow
+        console.error('Failed to log URL:', e instanceof Error ? e.message : 'Unknown error');
+    }
+}
+
 // ===== Request Handlers =====
-export const onRequestOptions: PagesFunction = async () => {
+export const onRequestOptions: PagesFunction<Env> = async () => {
     return new Response(null, { headers: corsHeaders });
 };
 
-export const onRequestPost: PagesFunction = async (context) => {
+export const onRequestPost: PagesFunction<Env> = async (context) => {
     try {
         const { request } = context;
         const rawBody = await request.json();
@@ -503,7 +524,10 @@ export const onRequestPost: PagesFunction = async (context) => {
             body.modelSettings.imageModel
         );
 
-        // 6. Return response
+        // 6. Log URL to KV (silent, non-blocking)
+        await logUrlToKV(context.env.URL_LOGS, body.articleUrl, 'blog');
+
+        // 7. Return response
         const response: Generate4KomaResponse = { storyboard, imageBase64 };
         return jsonResponse(response);
     } catch (error) {

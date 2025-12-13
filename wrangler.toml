@@ -3,3 +3,8 @@ compatibility_date = "2024-01-01"
 
 # Cloudflare Pages configuration
 pages_build_output_dir = "frontend/dist"
+
+# KV Namespaces for URL logging
+[[kv_namespaces]]
+binding = "URL_LOGS"
+id = "cc1a9365fd7441da8e17696a31778912"
