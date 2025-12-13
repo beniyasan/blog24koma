@@ -7,6 +7,24 @@ export interface Generate4KomaRequest {
   modelSettings?: ModelSettings;
 }
 
+export interface GenerateMovie4KomaRequest {
+  youtubeUrl: string;
+  userPrompt?: string;
+  geminiApiKey: string;
+  modelSettings?: ModelSettings;
+}
+
+export interface MovieSummary {
+  title: string;
+  summary: string;
+}
+
+export interface GenerateMovie4KomaResponse {
+  movieSummary: MovieSummary;
+  storyboard: StoryboardPanel[];
+  imageBase64: string;
+}
+
 export interface StoryboardPanel {
   panel: 1 | 2 | 3 | 4;
   description: string;
