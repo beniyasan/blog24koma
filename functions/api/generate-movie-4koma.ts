@@ -163,29 +163,76 @@ function extractVideoId(urlString: string): string {
     throw new ValidationError('YouTube動画のIDを取得できませんでした。URLを確認してください。');
 }
 
-// ===== Gemini API: Video Analysis and Summary =====
-async function analyzeVideoAndSummarize(
+// ===== Fetch Error Class =====
+class FetchError extends Error {
+    constructor(message: string) {
+        super(message);
+        this.name = 'FetchError';
+    }
+}
+
+// ===== YouTube Video Info Fetching =====
+interface YouTubeVideoInfo {
+    title: string;
+    author: string;
+    description?: string;
+}
+
+async function fetchYouTubeVideoInfo(videoId: string): Promise<YouTubeVideoInfo> {
+    // Use noembed.com to get video info (no API key required)
+    const noembedUrl = `https://noembed.com/embed?url=https://www.youtube.com/watch?v=${videoId}`;
+    
+    const response = await fetch(noembedUrl, {
+        headers: {
+            'User-Agent': 'Mozilla/5.0 (compatible; 4KomaBot/1.0)',
+        },
+        signal: AbortSignal.timeout(10000),
+    });
+
+    if (!response.ok) {
+        throw new FetchError(`動画情報の取得に失敗しました: ${response.status}`);
+    }
+
+    const data = await response.json();
+    
+    if (data.error) {
+        throw new FetchError('動画が見つかりませんでした。URLを確認してください。');
+    }
+
+    return {
+        title: data.title || 'タイトル不明',
+        author: data.author_name || '不明',
+        description: data.description || undefined,
+    };
+}
+
+// ===== Gemini API: Generate Summary from Video Info =====
+async function generateVideoSummary(
     apiKey: string,
+    videoInfo: YouTubeVideoInfo,
     youtubeUrl: string,
     model: string
 ): Promise<MovieSummary> {
-    const systemPrompt = `あなたは動画コンテンツアナリストです。与えられたYouTube動画のURLを分析し、その内容を要約してください。
+    const systemPrompt = `あなたは動画コンテンツアナリストです。YouTube動画のタイトルと情報から、動画の内容を推測して要約を作成してください。
 
 指示:
-1. 動画のメインテーマや主張を把握する
-2. 重要なポイントを抽出する
-3. 視聴者に伝えたいメッセージを理解する
+1. タイトルから動画のメインテーマを推測する
+2. 視聴者に伝えたいメッセージを想像する
+3. 4コマ漫画の素材になるような要約を作成する
 
 出力形式:
 必ず以下のJSON形式のみを出力してください。他の説明は不要です。
 {
-  "title": "動画のタイトル（推測または抽出）",
-  "summary": "動画内容の要約（200-400文字程度）"
+  "title": "動画のタイトル",
+  "summary": "動画内容の推測要約（200-400文字程度、4コマ漫画にしやすい内容で）"
 }`;
 
-    const userContent = `以下のYouTube動画を分析し、タイトルと要約をJSON形式で出力してください。
+    const userContent = `以下のYouTube動画の情報から、内容を推測して要約をJSON形式で出力してください。
 
-YouTube URL: ${youtubeUrl}`;
+動画タイトル: ${videoInfo.title}
+チャンネル名: ${videoInfo.author}
+URL: ${youtubeUrl}
+${videoInfo.description ? `説明: ${videoInfo.description}` : ''}`;
 
     const response = await fetch(
         `${GEMINI_API_BASE}/models/${model}:generateContent?key=${apiKey}`,
@@ -193,20 +240,7 @@ YouTube URL: ${youtubeUrl}`;
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                contents: [
-                    {
-                        role: 'user',
-                        parts: [
-                            { text: systemPrompt + '\n\n' + userContent },
-                            {
-                                fileData: {
-                                    mimeType: 'video/mp4',
-                                    fileUri: youtubeUrl
-                                }
-                            }
-                        ]
-                    }
-                ],
+                contents: [{ role: 'user', parts: [{ text: systemPrompt + '\n\n' + userContent }] }],
                 generationConfig: {
                     temperature: 0.7,
                     maxOutputTokens: 2048,
@@ -216,16 +250,14 @@ YouTube URL: ${youtubeUrl}`;
     );
 
     if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Gemini video analysis error:', response.status);
-        throw new GeminiError(`動画の分析中にエラーが発生しました: ${response.status}`);
+        throw new GeminiError(`動画要約の生成中にエラーが発生しました: ${response.status}`);
     }
 
     const result = await response.json();
     const textContent = result.candidates?.[0]?.content?.parts?.[0]?.text;
 
     if (!textContent) {
-        throw new GeminiError('動画分析の結果を取得できませんでした');
+        throw new GeminiError('動画要約の生成結果を取得できませんでした');
     }
 
     return parseMovieSummaryJson(textContent);
@@ -425,17 +457,21 @@ export const onRequestPost: PagesFunction = async (context) => {
         // 2. Check YouTube domain
         checkYouTubeDomain(body.youtubeUrl);
 
-        // 3. Extract video ID (for validation)
-        extractVideoId(body.youtubeUrl);
+        // 3. Extract video ID
+        const videoId = extractVideoId(body.youtubeUrl);
 
-        // 4. Analyze video and generate summary with Gemini
-        const movieSummary = await analyzeVideoAndSummarize(
+        // 4. Fetch YouTube video info (title, author)
+        const videoInfo = await fetchYouTubeVideoInfo(videoId);
+
+        // 5. Generate summary from video info with Gemini
+        const movieSummary = await generateVideoSummary(
             body.geminiApiKey,
+            videoInfo,
             body.youtubeUrl,
             body.modelSettings.storyboardModel
         );
 
-        // 5. Generate storyboard from summary
+        // 6. Generate storyboard from summary
         const storyboard = await generateStoryboard(
             body.geminiApiKey,
             movieSummary,
@@ -443,14 +479,14 @@ export const onRequestPost: PagesFunction = async (context) => {
             body.modelSettings.storyboardModel
         );
 
-        // 6. Generate 4-koma image
+        // 7. Generate 4-koma image
         const imageBase64 = await generate4KomaImage(
             body.geminiApiKey,
             storyboard,
             body.modelSettings.imageModel
         );
 
-        // 7. Return response
+        // 8. Return response
         const response: GenerateMovie4KomaResponse = { movieSummary, storyboard, imageBase64 };
         return jsonResponse(response);
     } catch (error) {
@@ -459,6 +495,9 @@ export const onRequestPost: PagesFunction = async (context) => {
         }
         if (error instanceof DomainError) {
             return errorResponse('INVALID_DOMAIN', error.message, 400);
+        }
+        if (error instanceof FetchError) {
+            return errorResponse('FETCH_ERROR', error.message, 502);
         }
         if (error instanceof GeminiError) {
             return errorResponse('GEMINI_ERROR', error.message, 502);
