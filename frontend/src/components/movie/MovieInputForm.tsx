@@ -35,15 +35,15 @@ export function MovieInputForm({
     };
 
     const handleModelSettingsChange = (settingType: string, value: string) => {
-        const currentSettings = modelSettings || {
-            storyboardModel: 'gemini-2.5-flash' as any,
-            imageModel: 'gemini-3-pro-image-preview' as any,
+        const currentSettings: ModelSettings = modelSettings || {
+            storyboardModel: 'gemini-2.5-flash',
+            imageModel: 'gemini-3-pro-image-preview',
         };
         
         const newSettings = {
             ...currentSettings,
-            [settingType]: value as any,
-        };
+            [settingType]: value as ModelSettings[keyof ModelSettings],
+        } as ModelSettings;
         onModelSettingsChange?.(newSettings);
     };
 

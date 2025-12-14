@@ -521,10 +521,12 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
             return errorResponse('INVALID_DOMAIN', error.message, 400);
         }
         if (error instanceof FetchError) {
-            return errorResponse('FETCH_ERROR', error.message, 502);
+            // NOTE: Avoid 502 because Cloudflare may replace the response body with its own error page.
+            return errorResponse('FETCH_ERROR', error.message, 500);
         }
         if (error instanceof GeminiError) {
-            return errorResponse('GEMINI_ERROR', error.message, 502);
+            // NOTE: Avoid 502 because Cloudflare may replace the response body with its own error page.
+            return errorResponse('GEMINI_ERROR', error.message, 500);
         }
 
         console.error('Unexpected error:', error instanceof Error ? error.message : 'Unknown error');
