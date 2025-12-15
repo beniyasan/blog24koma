@@ -3,9 +3,10 @@ import type { GenerateMovie4KomaResponse } from '../../types';
 interface MovieResultDisplayProps {
     result: GenerateMovie4KomaResponse;
     onReset: () => void;
+    isDemo?: boolean;
 }
 
-export function MovieResultDisplay({ result, onReset }: MovieResultDisplayProps) {
+export function MovieResultDisplay({ result, onReset, isDemo = false }: MovieResultDisplayProps) {
     return (
         <div className="fade-in">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--spacing-lg)' }}>
@@ -25,8 +26,8 @@ export function MovieResultDisplay({ result, onReset }: MovieResultDisplayProps)
                 </p>
             </div>
 
-            {/* Single 4-panel comic image */}
-            <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+            {/* Single 4-panel comic image with optional watermark */}
+            <div className="card result-image-container" style={{ padding: 0, overflow: 'hidden' }}>
                 <img
                     src={result.imageBase64}
                     alt="4コマ漫画"
@@ -36,7 +37,18 @@ export function MovieResultDisplay({ result, onReset }: MovieResultDisplayProps)
                         display: 'block',
                     }}
                 />
+                {isDemo && (
+                    <div className="demo-watermark-overlay">
+                        <span className="demo-watermark-text">DEMO</span>
+                    </div>
+                )}
             </div>
+
+            {isDemo && (
+                <p className="demo-result-notice">
+                    これはデモ出力です。透かしなしの画像は、BYOKモードでAPIキーを入力してご利用ください。
+                </p>
+            )}
 
             {/* Optional: Show storyboard text below for reference */}
             <details style={{ marginTop: 'var(--spacing-lg)' }}>

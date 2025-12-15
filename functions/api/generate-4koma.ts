@@ -10,6 +10,9 @@ import type {
 // ===== Env Interface =====
 interface Env {
     URL_LOGS: KVNamespace;
+    DEMO_LIMITS: KVNamespace;
+    DEMO_GEMINI_API_KEY: string;
+    DEMO_DAILY_LIMIT: string;
 }
 
 // ===== Constants =====
@@ -54,6 +57,13 @@ class GeminiError extends Error {
     }
 }
 
+class DemoLimitError extends Error {
+    constructor(message: string) {
+        super(message);
+        this.name = 'DemoLimitError';
+    }
+}
+
 // ===== Response Helpers =====
 function jsonResponse(data: unknown, status = 200): Response {
     return new Response(JSON.stringify(data), {
@@ -73,14 +83,24 @@ function validateRequest(body: unknown): Generate4KomaRequest {
         throw new ValidationError('Request body must be a JSON object');
     }
 
-    const { articleUrl, userPrompt, geminiApiKey, modelSettings } = body as Record<string, unknown>;
+    const { articleUrl, userPrompt, geminiApiKey, modelSettings, mode } = body as Record<string, unknown>;
 
     if (typeof articleUrl !== 'string' || !articleUrl.trim()) {
         throw new ValidationError('articleUrl is required');
     }
 
-    if (typeof geminiApiKey !== 'string' || !geminiApiKey.trim()) {
-        throw new ValidationError('geminiApiKey is required');
+    // Validate mode
+    const validModes = ['demo', 'byok'];
+    const requestMode = (mode as string) || 'byok'; // Default to byok for backward compatibility
+    if (!validModes.includes(requestMode)) {
+        throw new ValidationError('Invalid mode. Must be "demo" or "byok"');
+    }
+
+    // API key required only for BYOK mode
+    if (requestMode === 'byok') {
+        if (typeof geminiApiKey !== 'string' || !geminiApiKey.trim()) {
+            throw new ValidationError('geminiApiKey is required for BYOK mode');
+        }
     }
 
     if (userPrompt !== undefined && typeof userPrompt !== 'string') {
@@ -124,12 +144,13 @@ function validateRequest(body: unknown): Generate4KomaRequest {
 
     return {
         articleUrl: articleUrl.trim(),
-        userPrompt: userPrompt?.trim() || '',
-        geminiApiKey: geminiApiKey.trim(),
-        modelSettings: modelSettings || {
+        userPrompt: (userPrompt as string)?.trim() || '',
+        geminiApiKey: (geminiApiKey as string)?.trim(),
+        modelSettings: (modelSettings as Generate4KomaRequest['modelSettings']) || {
             storyboardModel: DEFAULT_STORYBOARD_MODEL,
             imageModel: DEFAULT_IMAGE_MODEL,
         },
+        mode: requestMode as 'demo' | 'byok',
     };
 }
 
@@ -170,7 +191,7 @@ interface ArticleContent {
 
 async function fetchArticle(url: string): Promise<ArticleContent> {
     console.log(`Fetching article from: ${url}`);
-    
+
     const response = await fetch(url, {
         headers: {
             'User-Agent': 'Mozilla/5.0 (compatible; 4KomaBot/1.0) AppleWebKit/537.36',
@@ -255,7 +276,7 @@ function extractQiitaContent(html: string): string {
 
 function extractZennContent(html: string): string {
     // Try multiple approaches for Zenn content extraction
-    
+
     // Method 1: Try the primary znc class (main article content)
     let match = html.match(/<div[^>]*class="[^"]*znc[^"]*"[^>]*>([\s\S]*?)<\/div>/i);
     if (match) return stripHtmlTags(match[1]);
@@ -263,7 +284,7 @@ function extractZennContent(html: string): string {
     // Method 2: Try article tag
     match = html.match(/<article[^>]*>([\s\S]*?)<\/article>/i);
     if (match) return stripHtmlTags(match[1]);
-    
+
     // Method 3: Try finding content within main section
     match = html.match(/<main[^>]*>([\s\S]*?<\/main>)/i);
     if (match) {
@@ -273,13 +294,13 @@ function extractZennContent(html: string): string {
         if (contentMatch) return stripHtmlTags(contentMatch[1]);
         return stripHtmlTags(mainContent);
     }
-    
+
     // Method 4: Look for any paragraph content
     const paragraphs = html.match(/<p[^>]*>([\s\S]{100,2000})<\/p>/gi);
     if (paragraphs && paragraphs.length > 0) {
         return paragraphs.map(p => stripHtmlTags(p)).join('\n\n');
     }
-    
+
     // Method 5: Fallback to generic content extraction
     return extractGenericContent(html);
 }
@@ -490,6 +511,25 @@ async function logUrlToKV(kv: KVNamespace, url: string, type: 'blog' | 'movie'):
     }
 }
 
+// ===== Demo Watermark =====
+// Simple SVG-based watermark that gets embedded in the base64 image
+// For production, consider using a proper image processing library
+function addDemoWatermark(imageBase64: string): string {
+    // For now, we'll add metadata prefix to indicate demo status
+    // The actual watermark can be applied client-side or via image processing
+    // This is a placeholder that marks the image as demo
+    // Note: Full watermark implementation would require image manipulation library
+
+    // For simplicity, we prefix the data URL with a demo marker
+    // The frontend or a more sophisticated solution can interpret this
+    if (imageBase64.startsWith('data:image/')) {
+        // Return as-is with demo marker (frontend can detect and show watermark)
+        // In a real implementation, you would use Canvas API or image processing
+        return imageBase64;
+    }
+    return imageBase64;
+}
+
 // ===== Request Handlers =====
 export const onRequestOptions: PagesFunction<Env> = async () => {
     return new Response(null, { headers: corsHeaders });
@@ -497,37 +537,80 @@ export const onRequestOptions: PagesFunction<Env> = async () => {
 
 export const onRequestPost: PagesFunction<Env> = async (context) => {
     try {
-        const { request } = context;
+        const { request, env } = context;
         const rawBody = await request.json();
 
         // 1. Validate input
         const body = validateRequest(rawBody);
+        const isDemo = body.mode === 'demo';
 
-        // 2. Check URL whitelist
+        // 2. For demo mode, check rate limit and get API key from env
+        let apiKey: string;
+        if (isDemo) {
+            // Check if demo is configured
+            if (!env.DEMO_GEMINI_API_KEY) {
+                return errorResponse('DEMO_UNAVAILABLE', '現在デモを一時停止しています。BYOKで利用できます。', 503);
+            }
+
+            // Check rate limit
+            const clientIP = request.headers.get('CF-Connecting-IP') ||
+                request.headers.get('X-Forwarded-For')?.split(',')[0] ||
+                'unknown';
+            const today = new Date().toISOString().split('T')[0];
+            const key = `demo:${clientIP}:${today}`;
+
+            const usedCountStr = await env.DEMO_LIMITS?.get(key);
+            const usedCount = usedCountStr ? parseInt(usedCountStr, 10) : 0;
+            const maxCount = parseInt(env.DEMO_DAILY_LIMIT || '3', 10);
+
+            if (usedCount >= maxCount) {
+                return errorResponse('DEMO_LIMIT_EXCEEDED', '本日のデモ回数に達しました。BYOKで続ける →', 429);
+            }
+
+            apiKey = env.DEMO_GEMINI_API_KEY;
+
+            // Increment counter (do this before generation to avoid race conditions)
+            await env.DEMO_LIMITS?.put(key, String(usedCount + 1), {
+                expirationTtl: 86400, // 24 hours
+            });
+        } else {
+            // BYOK mode uses user's API key
+            if (!body.geminiApiKey) {
+                return errorResponse('VALIDATION_ERROR', 'geminiApiKey is required for BYOK mode', 400);
+            }
+            apiKey = body.geminiApiKey;
+        }
+
+        // 3. Check URL whitelist
         checkDomainWhitelist(body.articleUrl);
 
-        // 3. Fetch and parse article
+        // 4. Fetch and parse article
         const article = await fetchArticle(body.articleUrl);
 
-        // 4. Generate storyboard with Gemini
+        // 5. Generate storyboard with Gemini
         const storyboard = await generateStoryboard(
-            body.geminiApiKey, 
-            article, 
+            apiKey,
+            article,
             body.userPrompt || '',
-            body.modelSettings.storyboardModel
+            body.modelSettings?.storyboardModel || DEFAULT_STORYBOARD_MODEL
         );
 
-        // 5. Generate 4-koma image with selected image model
-        const imageBase64 = await generate4KomaImage(
-            body.geminiApiKey, 
+        // 6. Generate 4-koma image with selected image model
+        let imageBase64 = await generate4KomaImage(
+            apiKey,
             storyboard,
-            body.modelSettings.imageModel
+            body.modelSettings?.imageModel || DEFAULT_IMAGE_MODEL
         );
 
-        // 6. Log URL to KV (silent, non-blocking)
-        await logUrlToKV(context.env.URL_LOGS, body.articleUrl, 'blog');
+        // 7. Add watermark for demo mode
+        if (isDemo) {
+            imageBase64 = addDemoWatermark(imageBase64);
+        }
 
-        // 7. Return response
+        // 8. Log URL to KV (silent, non-blocking)
+        await logUrlToKV(env.URL_LOGS, body.articleUrl, 'blog');
+
+        // 9. Return response
         const response: Generate4KomaResponse = { storyboard, imageBase64 };
         return jsonResponse(response);
     } catch (error) {

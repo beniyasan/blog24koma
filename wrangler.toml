@@ -4,7 +4,17 @@ compatibility_date = "2024-01-01"
 # Cloudflare Pages configuration
 pages_build_output_dir = "frontend/dist"
 
+# Environment variables (set in Cloudflare dashboard or .dev.vars for local)
+[vars]
+DEMO_DAILY_LIMIT = "1"
+MOVIE_DEMO_DAILY_LIMIT = "1"
+
 # KV Namespaces for URL logging
 [[kv_namespaces]]
 binding = "URL_LOGS"
 id = "cc1a9365fd7441da8e17696a31778912"
+
+# KV Namespace for demo rate limiting
+[[kv_namespaces]]
+binding = "DEMO_LIMITS"
+id = "db7ce9059e284d3d9e11403786c3947a"

@@ -1,17 +1,28 @@
 // ===== API Request/Response Types =====
 
+export type GenerationMode = 'demo' | 'byok';
+
+export interface DemoStatus {
+  remainingCount: number;
+  maxCount: number;
+  isAvailable: boolean;
+  message?: string;
+}
+
 export interface Generate4KomaRequest {
   articleUrl: string;
   userPrompt?: string;
-  geminiApiKey: string;
+  geminiApiKey?: string;  // Optional for Demo mode
   modelSettings?: ModelSettings;
+  mode: GenerationMode;   // Required
 }
 
 export interface GenerateMovie4KomaRequest {
   youtubeUrl: string;
   userPrompt?: string;
-  geminiApiKey: string;
+  geminiApiKey?: string;  // Optional for Demo mode
   modelSettings?: ModelSettings;
+  mode: GenerationMode;   // Required
 }
 
 export interface MovieSummary {
@@ -84,6 +95,8 @@ export type ErrorCode =
   | 'FETCH_ERROR'
   | 'GEMINI_ERROR'
   | 'RATE_LIMIT'
+  | 'DEMO_LIMIT_EXCEEDED'
+  | 'DEMO_UNAVAILABLE'
   | 'INTERNAL_ERROR';
 
 export interface ApiError {
