@@ -17,4 +17,4 @@ id = "cc1a9365fd7441da8e17696a31778912"
 # KV Namespace for demo rate limiting
 [[kv_namespaces]]
 binding = "DEMO_LIMITS"
-id = "db7ce9059e284d3d9e17696a31778912"
+id = "db7ce9059e284d3d9e11403786c3947a"
