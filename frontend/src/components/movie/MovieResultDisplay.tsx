@@ -1,4 +1,6 @@
+import { useState, useEffect } from 'react';
 import type { GenerateMovie4KomaResponse } from '../../types';
+import { addWatermarkToImage } from '../../utils/watermark';
 
 interface MovieResultDisplayProps {
     result: GenerateMovie4KomaResponse;
@@ -7,6 +9,27 @@ interface MovieResultDisplayProps {
 }
 
 export function MovieResultDisplay({ result, onReset, isDemo = false }: MovieResultDisplayProps) {
+    const [displayImage, setDisplayImage] = useState<string>(result.imageBase64);
+    const [isProcessing, setIsProcessing] = useState(false);
+
+    useEffect(() => {
+        if (isDemo && result.imageBase64) {
+            setIsProcessing(true);
+            addWatermarkToImage(result.imageBase64)
+                .then((watermarkedImage) => {
+                    setDisplayImage(watermarkedImage);
+                    setIsProcessing(false);
+                })
+                .catch((error) => {
+                    console.error('Failed to add watermark:', error);
+                    setDisplayImage(result.imageBase64);
+                    setIsProcessing(false);
+                });
+        } else {
+            setDisplayImage(result.imageBase64);
+        }
+    }, [isDemo, result.imageBase64]);
+
     return (
         <div className="fade-in">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--spacing-lg)' }}>
@@ -26,10 +49,26 @@ export function MovieResultDisplay({ result, onReset, isDemo = false }: MovieRes
                 </p>
             </div>
 
-            {/* Single 4-panel comic image with optional watermark */}
-            <div className="card result-image-container" style={{ padding: 0, overflow: 'hidden' }}>
+            {/* Single 4-panel comic image with embedded watermark for demo */}
+            <div className="card" style={{ padding: 0, overflow: 'hidden', position: 'relative' }}>
+                {isProcessing && (
+                    <div style={{
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        background: 'rgba(255,255,255,0.8)',
+                        zIndex: 1
+                    }}>
+                        <span>処理中...</span>
+                    </div>
+                )}
                 <img
-                    src={result.imageBase64}
+                    src={displayImage}
                     alt="4コマ漫画"
                     style={{
                         width: '100%',
@@ -37,11 +76,6 @@ export function MovieResultDisplay({ result, onReset, isDemo = false }: MovieRes
                         display: 'block',
                     }}
                 />
-                {isDemo && (
-                    <div className="demo-watermark-overlay">
-                        <span className="demo-watermark-text">DEMO</span>
-                    </div>
-                )}
             </div>
 
             {isDemo && (
