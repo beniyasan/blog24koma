@@ -20,6 +20,8 @@ const ERROR_MESSAGES: Record<ErrorCode, string> = {
     FETCH_ERROR: '動画情報の取得に失敗しました。URLが正しいか確認してください。',
     GEMINI_ERROR: 'AIの処理中にエラーが発生しました。APIキーを確認するか、しばらくしてから再試行してください。',
     RATE_LIMIT: 'リクエストが多すぎます。しばらくしてから再試行してください。',
+    DEMO_LIMIT_EXCEEDED: '本日のデモ回数に達しました。BYOKモードでAPIキーを入力してお試しください。',
+    DEMO_UNAVAILABLE: '現在デモを一時停止しています。BYOKモードでAPIキーを入力してお試しください。',
     INTERNAL_ERROR: '予期しないエラーが発生しました。しばらくしてから再試行してください。',
 };
 

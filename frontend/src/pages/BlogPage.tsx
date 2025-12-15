@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { InputForm } from '../components/InputForm';
 import { ResultDisplay } from '../components/ResultDisplay';
@@ -5,14 +6,24 @@ import { LoadingSpinner } from '../components/LoadingSpinner';
 import { ErrorDisplay } from '../components/ErrorDisplay';
 import { useGenerate4Koma } from '../hooks/useGenerate4Koma';
 import { useModelSettings } from '../hooks/useModelSettings';
-import type { Generate4KomaRequest } from '../types';
+import { useDemoStatus } from '../hooks/useDemoStatus';
+import type { Generate4KomaRequest, GenerationMode } from '../types';
 
 export function BlogPage() {
+    const [mode, setMode] = useState<GenerationMode>('demo');
     const { result, loading, error, generate, reset } = useGenerate4Koma();
     const { settings: modelSettings, ...modelSettingsActions } = useModelSettings();
+    const { status: demoStatus, refresh: refreshDemoStatus } = useDemoStatus();
 
     const handleGenerate = (data: Generate4KomaRequest) => {
         generate(data);
+    };
+
+    const handleReset = () => {
+        reset();
+        if (mode === 'demo') {
+            refreshDemoStatus();
+        }
     };
 
     return (
@@ -48,17 +59,20 @@ export function BlogPage() {
                                 modelSettingsActions.updateImageModel(imageModel);
                             }
                         }}
+                        mode={mode}
+                        onModeChange={setMode}
+                        demoStatus={demoStatus}
                     />
                 )}
 
                 {loading && <LoadingSpinner message="4コマ漫画を生成中..." />}
 
                 {error && !loading && (
-                    <ErrorDisplay message={error} onRetry={reset} />
+                    <ErrorDisplay message={error} onRetry={handleReset} />
                 )}
 
                 {result && !loading && (
-                    <ResultDisplay result={result} onReset={reset} />
+                    <ResultDisplay result={result} onReset={handleReset} isDemo={mode === 'demo'} />
                 )}
             </main>
 

@@ -10,6 +10,9 @@ import type {
 // ===== Env Interface =====
 interface Env {
     URL_LOGS: KVNamespace;
+    DEMO_LIMITS: KVNamespace;
+    DEMO_GEMINI_API_KEY: string;
+    MOVIE_DEMO_DAILY_LIMIT: string;
 }
 
 // ===== Constants =====
@@ -66,14 +69,24 @@ function validateRequest(body: unknown): GenerateMovie4KomaRequest {
         throw new ValidationError('Request body must be a JSON object');
     }
 
-    const { youtubeUrl, userPrompt, geminiApiKey, modelSettings } = body as Record<string, unknown>;
+    const { youtubeUrl, userPrompt, geminiApiKey, modelSettings, mode } = body as Record<string, unknown>;
 
     if (typeof youtubeUrl !== 'string' || !youtubeUrl.trim()) {
         throw new ValidationError('youtubeUrl is required');
     }
 
-    if (typeof geminiApiKey !== 'string' || !geminiApiKey.trim()) {
-        throw new ValidationError('geminiApiKey is required');
+    // Validate mode
+    const validModes = ['demo', 'byok'];
+    const requestMode = (mode as string) || 'byok'; // Default to byok for backward compatibility
+    if (!validModes.includes(requestMode)) {
+        throw new ValidationError('Invalid mode. Must be "demo" or "byok"');
+    }
+
+    // API key required only for BYOK mode
+    if (requestMode === 'byok') {
+        if (typeof geminiApiKey !== 'string' || !geminiApiKey.trim()) {
+            throw new ValidationError('geminiApiKey is required for BYOK mode');
+        }
     }
 
     if (userPrompt !== undefined && typeof userPrompt !== 'string') {
@@ -117,12 +130,13 @@ function validateRequest(body: unknown): GenerateMovie4KomaRequest {
 
     return {
         youtubeUrl: youtubeUrl.trim(),
-        userPrompt: userPrompt?.trim() || '',
-        geminiApiKey: geminiApiKey.trim(),
-        modelSettings: modelSettings || {
+        userPrompt: (userPrompt as string)?.trim() || '',
+        geminiApiKey: (geminiApiKey as string)?.trim(),
+        modelSettings: (modelSettings as GenerateMovie4KomaRequest['modelSettings']) || {
             storyboardModel: DEFAULT_STORYBOARD_MODEL,
             imageModel: DEFAULT_IMAGE_MODEL,
         },
+        mode: requestMode as 'demo' | 'byok',
     };
 }
 
@@ -186,7 +200,7 @@ interface YouTubeVideoInfo {
 async function fetchYouTubeVideoInfo(videoId: string): Promise<YouTubeVideoInfo> {
     // Use noembed.com to get video info (no API key required)
     const noembedUrl = `https://noembed.com/embed?url=https://www.youtube.com/watch?v=${videoId}`;
-    
+
     const response = await fetch(noembedUrl, {
         headers: {
             'User-Agent': 'Mozilla/5.0 (compatible; 4KomaBot/1.0)',
@@ -199,7 +213,7 @@ async function fetchYouTubeVideoInfo(videoId: string): Promise<YouTubeVideoInfo>
     }
 
     const data = await response.json();
-    
+
     if (data.error) {
         throw new FetchError('動画が見つかりませんでした。URLを確認してください。');
     }
@@ -469,48 +483,86 @@ export const onRequestOptions: PagesFunction<Env> = async () => {
 
 export const onRequestPost: PagesFunction<Env> = async (context) => {
     try {
-        const { request } = context;
+        const { request, env } = context;
         const rawBody = await request.json();
 
         // 1. Validate input
         const body = validateRequest(rawBody);
+        const isDemo = body.mode === 'demo';
 
-        // 2. Check YouTube domain
+        // 2. For demo mode, check rate limit and get API key from env
+        let apiKey: string;
+        if (isDemo) {
+            // Check if demo is configured
+            if (!env.DEMO_GEMINI_API_KEY) {
+                return errorResponse('DEMO_UNAVAILABLE', '現在デモを一時停止しています。BYOKで利用できます。', 503);
+            }
+
+            // Check rate limit
+            const clientIP = request.headers.get('CF-Connecting-IP') ||
+                request.headers.get('X-Forwarded-For')?.split(',')[0] ||
+                'unknown';
+            const today = new Date().toISOString().split('T')[0];
+            const key = `movie-demo:${clientIP}:${today}`;
+
+            const usedCountStr = await env.DEMO_LIMITS?.get(key);
+            const usedCount = usedCountStr ? parseInt(usedCountStr, 10) : 0;
+            const maxCount = parseInt(env.MOVIE_DEMO_DAILY_LIMIT || '1', 10);
+
+            if (usedCount >= maxCount) {
+                return errorResponse('DEMO_LIMIT_EXCEEDED', '本日の動画デモ回数に達しました。BYOKで続ける →', 429);
+            }
+
+            apiKey = env.DEMO_GEMINI_API_KEY;
+
+            // Increment counter (do this before generation to avoid race conditions)
+            await env.DEMO_LIMITS?.put(key, String(usedCount + 1), {
+                expirationTtl: 86400, // 24 hours
+            });
+        } else {
+            // BYOK mode uses user's API key
+            if (!body.geminiApiKey) {
+                return errorResponse('VALIDATION_ERROR', 'geminiApiKey is required for BYOK mode', 400);
+            }
+            apiKey = body.geminiApiKey;
+        }
+
+        // 3. Check YouTube domain
         checkYouTubeDomain(body.youtubeUrl);
 
-        // 3. Extract video ID
+        // 4. Extract video ID
         const videoId = extractVideoId(body.youtubeUrl);
 
-        // 4. Fetch YouTube video info (title, author)
+        // 5. Fetch YouTube video info (title, author)
         const videoInfo = await fetchYouTubeVideoInfo(videoId);
 
-        // 5. Generate summary from video info with Gemini
+        // 6. Generate summary from video info with Gemini
         const movieSummary = await generateVideoSummary(
-            body.geminiApiKey,
+            apiKey,
             videoInfo,
             body.youtubeUrl,
-            body.modelSettings.storyboardModel
+            body.modelSettings?.storyboardModel || DEFAULT_STORYBOARD_MODEL
         );
 
-        // 6. Generate storyboard from summary
+        // 7. Generate storyboard from summary
         const storyboard = await generateStoryboard(
-            body.geminiApiKey,
+            apiKey,
             movieSummary,
             body.userPrompt || '',
-            body.modelSettings.storyboardModel
+            body.modelSettings?.storyboardModel || DEFAULT_STORYBOARD_MODEL
         );
 
-        // 7. Generate 4-koma image
+        // 8. Generate 4-koma image
         const imageBase64 = await generate4KomaImage(
-            body.geminiApiKey,
+            apiKey,
             storyboard,
-            body.modelSettings.imageModel
+            body.modelSettings?.imageModel || DEFAULT_IMAGE_MODEL
         );
 
-        // 8. Log URL to KV (silent, non-blocking)
-        await logUrlToKV(context.env.URL_LOGS, body.youtubeUrl, 'movie');
+        // 9. Log URL to KV (silent, non-blocking)
+        await logUrlToKV(env.URL_LOGS, body.youtubeUrl, 'movie');
 
-        // 9. Return response
+        // 10. Return response
         const response: GenerateMovie4KomaResponse = { movieSummary, storyboard, imageBase64 };
         return jsonResponse(response);
     } catch (error) {
