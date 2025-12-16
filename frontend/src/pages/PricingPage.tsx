@@ -45,7 +45,7 @@ const PLANS = [
 ];
 
 export const PricingPage: React.FC = () => {
-    const { isLoading: isAuthLoading, isAuthenticated, user, login } = useAuth();
+    const { isLoading: isAuthLoading, isAuthenticated, user, login, logout } = useAuth();
     const [isCheckoutLoading, setIsCheckoutLoading] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
 
@@ -96,6 +96,17 @@ export const PricingPage: React.FC = () => {
                     <Link to="/" className="nav-link">ブログ4コマ</Link>
                     <Link to="/movie" className="nav-link">動画4コマ</Link>
                     <Link to="/pricing" className="nav-link active">料金プラン</Link>
+                    <div className="nav-auth">
+                        {isAuthenticated && user ? (
+                            <>
+                                <span className="user-email">{user.email}</span>
+                                <span className="user-plan">{user.plan.toUpperCase()}</span>
+                                <button onClick={logout} className="auth-button">ログアウト</button>
+                            </>
+                        ) : (
+                            <button onClick={login} className="auth-button primary">ログイン</button>
+                        )}
+                    </div>
                 </nav>
                 <div className="hero-content">
                     <h1 className="header-title">料金プラン</h1>

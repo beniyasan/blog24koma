@@ -50,7 +50,7 @@ export function InputForm({
             return;
         }
 
-        // In Demo mode, submit directly
+        // In Demo, Lite, Pro modes, submit directly (server uses its own API key)
         submitRequest();
     };
 
