@@ -1,8 +1,8 @@
 // Auth API - Returns current user info from Cloudflare Access
 // This endpoint is used by the frontend to check authentication status
 
-import { getCorsHeaders, corsPreflightResponse } from './_cors';
-import { getUserFromAccessHeaders } from './_auth';
+import { getCorsHeaders, corsPreflightResponse } from '../_cors';
+import { getUserFromAccessHeaders } from '../_auth';
 
 interface Env {
     DB: D1Database;
