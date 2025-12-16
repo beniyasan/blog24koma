@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { PricingCard } from '../components/PricingCard';
 import { useAuth } from '../hooks/useAuth';
 import './PricingPage.css';
@@ -89,56 +90,66 @@ export const PricingPage: React.FC = () => {
     };
 
     return (
-        <div className="pricing-page">
-            <div className="pricing-header">
-                <h1>料金プラン</h1>
-                <p>あなたに合ったプランを選んでください</p>
-                {isAuthenticated && user && (
-                    <p className="current-user">
-                        ログイン中: {user.email} ({user.plan.toUpperCase()})
-                    </p>
+        <div className="app">
+            <header className="header pricing-header-wrap">
+                <nav className="nav-links">
+                    <Link to="/" className="nav-link">ブログ4コマ</Link>
+                    <Link to="/movie" className="nav-link">動画4コマ</Link>
+                    <Link to="/pricing" className="nav-link nav-pricing active">料金プラン</Link>
+                </nav>
+            </header>
+
+            <div className="pricing-page">
+                <div className="pricing-header">
+                    <h1>料金プラン</h1>
+                    <p>あなたに合ったプランを選んでください</p>
+                    {isAuthenticated && user && (
+                        <p className="current-user">
+                            ログイン中: {user.email} ({user.plan.toUpperCase()})
+                        </p>
+                    )}
+                </div>
+
+                {error && (
+                    <div className="pricing-error">
+                        {error}
+                    </div>
                 )}
-            </div>
 
-            {error && (
-                <div className="pricing-error">
-                    {error}
-                </div>
-            )}
+                {isAuthLoading ? (
+                    <div className="pricing-loading">読み込み中...</div>
+                ) : (
+                    <div className="pricing-cards">
+                        {PLANS.map((plan) => (
+                            <PricingCard
+                                key={plan.id}
+                                name={plan.name}
+                                price={plan.price}
+                                period={plan.period}
+                                features={plan.features}
+                                isPopular={plan.isPopular}
+                                isCurrentPlan={plan.id === currentPlan}
+                                onSelect={() => handleSelectPlan(plan.id)}
+                                disabled={isCheckoutLoading !== null || plan.id === 'free'}
+                            />
+                        ))}
+                    </div>
+                )}
 
-            {isAuthLoading ? (
-                <div className="pricing-loading">読み込み中...</div>
-            ) : (
-                <div className="pricing-cards">
-                    {PLANS.map((plan) => (
-                        <PricingCard
-                            key={plan.id}
-                            name={plan.name}
-                            price={plan.price}
-                            period={plan.period}
-                            features={plan.features}
-                            isPopular={plan.isPopular}
-                            isCurrentPlan={plan.id === currentPlan}
-                            onSelect={() => handleSelectPlan(plan.id)}
-                            disabled={isCheckoutLoading !== null || plan.id === 'free'}
-                        />
-                    ))}
-                </div>
-            )}
-
-            <div className="pricing-faq">
-                <h2>よくある質問</h2>
-                <div className="faq-item">
-                    <h3>いつでも解約できますか？</h3>
-                    <p>はい、いつでもキャンセル可能です。次の請求日まで利用できます。</p>
-                </div>
-                <div className="faq-item">
-                    <h3>プランの変更はできますか？</h3>
-                    <p>はい、いつでもアップグレード・ダウングレードが可能です。</p>
-                </div>
-                <div className="faq-item">
-                    <h3>回数はどのようにカウントされますか？</h3>
-                    <p>ブログ4コマと動画4コマの合計で月間回数がカウントされます。</p>
+                <div className="pricing-faq">
+                    <h2>よくある質問</h2>
+                    <div className="faq-item">
+                        <h3>いつでも解約できますか？</h3>
+                        <p>はい、いつでもキャンセル可能です。次の請求日まで利用できます。</p>
+                    </div>
+                    <div className="faq-item">
+                        <h3>プランの変更はできますか？</h3>
+                        <p>はい、いつでもアップグレード・ダウングレードが可能です。</p>
+                    </div>
+                    <div className="faq-item">
+                        <h3>回数はどのようにカウントされますか？</h3>
+                        <p>ブログ4コマと動画4コマの合計で月間回数がカウントされます。</p>
+                    </div>
                 </div>
             </div>
         </div>
