@@ -88,7 +88,7 @@ function validateRequest(body: unknown): Generate4KomaRequest {
     }
 
     // Validate mode
-    const validModes = ['demo', 'byok'];
+    const validModes = ['demo', 'lite', 'pro', 'byok'];
     const requestMode = (mode as string) || 'byok'; // Default to byok for backward compatibility
     if (!validModes.includes(requestMode)) {
         throw new ValidationError('Invalid mode. Must be "demo" or "byok"');
