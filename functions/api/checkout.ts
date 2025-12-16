@@ -1,0 +1,123 @@
+// Stripe Checkout API endpoint
+// Creates a Stripe Checkout session for subscription
+
+import { getCorsHeaders, corsPreflightResponse } from './_cors';
+
+interface Env {
+    DB: D1Database;
+    STRIPE_SECRET_KEY: string;
+    STRIPE_LITE_PRICE_ID: string;
+    STRIPE_PRO_PRICE_ID: string;
+}
+
+interface CheckoutRequest {
+    plan: 'lite' | 'pro';
+    userEmail: string;
+    userId: string;
+}
+
+function jsonResponse(data: unknown, origin: string | null, status = 200): Response {
+    return new Response(JSON.stringify(data), {
+        status,
+        headers: { ...getCorsHeaders(origin), 'Content-Type': 'application/json' },
+    });
+}
+
+export const onRequestOptions: PagesFunction<Env> = async (context) => {
+    const origin = context.request.headers.get('Origin');
+    return corsPreflightResponse(origin);
+};
+
+export const onRequestPost: PagesFunction<Env> = async (context) => {
+    const { request, env } = context;
+    const origin = request.headers.get('Origin');
+
+    try {
+        const body = await request.json() as CheckoutRequest;
+
+        if (!body.plan || !['lite', 'pro'].includes(body.plan)) {
+            return jsonResponse({ error: 'Invalid plan' }, origin, 400);
+        }
+
+        if (!body.userEmail || !body.userId) {
+            return jsonResponse({ error: 'userEmail and userId are required' }, origin, 400);
+        }
+
+        // Get the appropriate price ID
+        const priceId = body.plan === 'lite'
+            ? env.STRIPE_LITE_PRICE_ID
+            : env.STRIPE_PRO_PRICE_ID;
+
+        // Check if user already exists in Stripe
+        let stripeCustomerId: string | null = null;
+        const existingUser = await env.DB.prepare(
+            'SELECT stripe_customer_id FROM users WHERE id = ?'
+        ).bind(body.userId).first();
+
+        if (existingUser?.stripe_customer_id) {
+            stripeCustomerId = existingUser.stripe_customer_id as string;
+        } else {
+            // Create new Stripe customer
+            const customerResponse = await fetch('https://api.stripe.com/v1/customers', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${env.STRIPE_SECRET_KEY}`,
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: new URLSearchParams({
+                    email: body.userEmail,
+                    metadata: { user_id: body.userId },
+                } as Record<string, string>),
+            });
+
+            if (!customerResponse.ok) {
+                throw new Error('Failed to create Stripe customer');
+            }
+
+            const customer = await customerResponse.json() as { id: string };
+            stripeCustomerId = customer.id;
+
+            // Save customer ID to database
+            await env.DB.prepare(`
+                INSERT INTO users (id, email, stripe_customer_id) 
+                VALUES (?, ?, ?)
+                ON CONFLICT(id) DO UPDATE SET stripe_customer_id = ?
+            `).bind(body.userId, body.userEmail, stripeCustomerId, stripeCustomerId).run();
+        }
+
+        // Create Stripe Checkout session
+        const successUrl = `${origin || 'https://blog4koma.com'}/subscription/success?session_id={CHECKOUT_SESSION_ID}`;
+        const cancelUrl = `${origin || 'https://blog4koma.com'}/pricing`;
+
+        const sessionResponse = await fetch('https://api.stripe.com/v1/checkout/sessions', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${env.STRIPE_SECRET_KEY}`,
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: new URLSearchParams({
+                customer: stripeCustomerId,
+                mode: 'subscription',
+                'line_items[0][price]': priceId,
+                'line_items[0][quantity]': '1',
+                success_url: successUrl,
+                cancel_url: cancelUrl,
+                'metadata[user_id]': body.userId,
+                'metadata[plan]': body.plan,
+            }),
+        });
+
+        if (!sessionResponse.ok) {
+            const error = await sessionResponse.text();
+            console.error('Stripe session creation failed:', error);
+            throw new Error('Failed to create checkout session');
+        }
+
+        const session = await sessionResponse.json() as { url: string };
+
+        return jsonResponse({ url: session.url }, origin);
+    } catch (error) {
+        console.error('Checkout error:', error instanceof Error ? error.message : 'Unknown error');
+        return jsonResponse({ error: 'Failed to create checkout session' }, origin, 500);
+    }
+};

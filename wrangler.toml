@@ -8,6 +8,8 @@ pages_build_output_dir = "frontend/dist"
 [vars]
 DEMO_DAILY_LIMIT = "5"
 MOVIE_DEMO_DAILY_LIMIT = "3"
+STRIPE_LITE_PRICE_ID = "price_1SeuNKRMCFkIeD9MyU5gJTWj"
+STRIPE_PRO_PRICE_ID = "price_1SeuNgRMCFkIeD9Mig3kTVBy"
 
 # KV Namespaces for URL logging
 [[kv_namespaces]]
@@ -18,3 +20,9 @@ id = "cc1a9365fd7441da8e17696a31778912"
 [[kv_namespaces]]
 binding = "DEMO_LIMITS"
 id = "db7ce9059e284d3d9e11403786c3947a"
+
+# D1 Database for user accounts and subscriptions
+[[d1_databases]]
+binding = "DB"
+database_name = "blog4koma-users"
+database_id = "7a7f1c49-79e8-4007-8906-7ec28b186b7c"
