@@ -91,67 +91,71 @@ export const PricingPage: React.FC = () => {
 
     return (
         <div className="app">
-            <header className="header pricing-header-wrap">
+            <header className="header">
                 <nav className="nav-links">
                     <Link to="/" className="nav-link">ブログ4コマ</Link>
                     <Link to="/movie" className="nav-link">動画4コマ</Link>
-                    <Link to="/pricing" className="nav-link nav-pricing active">料金プラン</Link>
+                    <Link to="/pricing" className="nav-link active">料金プラン</Link>
                 </nav>
-            </header>
-
-            <div className="pricing-page">
-                <div className="pricing-header">
-                    <h1>料金プラン</h1>
-                    <p>あなたに合ったプランを選んでください</p>
+                <div className="hero-content">
+                    <h1 className="header-title">料金プラン</h1>
+                    <p className="header-subtitle">
+                        あなたのニーズに合ったプランを選んでください
+                    </p>
                     {isAuthenticated && user && (
-                        <p className="current-user">
+                        <p className="header-note">
                             ログイン中: {user.email} ({user.plan.toUpperCase()})
                         </p>
                     )}
                 </div>
+            </header>
 
-                {error && (
-                    <div className="pricing-error">
-                        {error}
-                    </div>
-                )}
+            <main className="container">
+                <div className="pricing-page">
 
-                {isAuthLoading ? (
-                    <div className="pricing-loading">読み込み中...</div>
-                ) : (
-                    <div className="pricing-cards">
-                        {PLANS.map((plan) => (
-                            <PricingCard
-                                key={plan.id}
-                                name={plan.name}
-                                price={plan.price}
-                                period={plan.period}
-                                features={plan.features}
-                                isPopular={plan.isPopular}
-                                isCurrentPlan={plan.id === currentPlan}
-                                onSelect={() => handleSelectPlan(plan.id)}
-                                disabled={isCheckoutLoading !== null || plan.id === 'free'}
-                            />
-                        ))}
-                    </div>
-                )}
+                    {error && (
+                        <div className="pricing-error">
+                            {error}
+                        </div>
+                    )}
 
-                <div className="pricing-faq">
-                    <h2>よくある質問</h2>
-                    <div className="faq-item">
-                        <h3>いつでも解約できますか？</h3>
-                        <p>はい、いつでもキャンセル可能です。次の請求日まで利用できます。</p>
-                    </div>
-                    <div className="faq-item">
-                        <h3>プランの変更はできますか？</h3>
-                        <p>はい、いつでもアップグレード・ダウングレードが可能です。</p>
-                    </div>
-                    <div className="faq-item">
-                        <h3>回数はどのようにカウントされますか？</h3>
-                        <p>ブログ4コマと動画4コマの合計で月間回数がカウントされます。</p>
+                    {isAuthLoading ? (
+                        <div className="pricing-loading">読み込み中...</div>
+                    ) : (
+                        <div className="pricing-cards">
+                            {PLANS.map((plan) => (
+                                <PricingCard
+                                    key={plan.id}
+                                    name={plan.name}
+                                    price={plan.price}
+                                    period={plan.period}
+                                    features={plan.features}
+                                    isPopular={plan.isPopular}
+                                    isCurrentPlan={plan.id === currentPlan}
+                                    onSelect={() => handleSelectPlan(plan.id)}
+                                    disabled={isCheckoutLoading !== null || plan.id === 'free'}
+                                />
+                            ))}
+                        </div>
+                    )}
+
+                    <div className="pricing-faq">
+                        <h2>よくある質問</h2>
+                        <div className="faq-item">
+                            <h3>いつでも解約できますか？</h3>
+                            <p>はい、いつでもキャンセル可能です。次の請求日まで利用できます。</p>
+                        </div>
+                        <div className="faq-item">
+                            <h3>プランの変更はできますか？</h3>
+                            <p>はい、いつでもアップグレード・ダウングレードが可能です。</p>
+                        </div>
+                        <div className="faq-item">
+                            <h3>回数はどのようにカウントされますか？</h3>
+                            <p>ブログ4コマと動画4コマの合計で月間回数がカウントされます。</p>
+                        </div>
                     </div>
                 </div>
-            </div>
+            </main>
         </div>
     );
 };

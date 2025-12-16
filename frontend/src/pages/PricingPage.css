@@ -4,49 +4,53 @@
     padding: 40px 20px;
 }
 
-.pricing-header {
+/* Hero content for pricing page */
+.pricing-hero {
+    position: relative;
+    z-index: 1;
+    padding: var(--spacing-2xl) var(--spacing-lg);
     text-align: center;
-    margin-bottom: 48px;
 }
 
-.pricing-header h1 {
-    font-size: 2.5rem;
+.pricing-hero h1 {
+    font-size: var(--font-size-3xl);
     font-weight: 800;
-    background: linear-gradient(90deg, #fff, #a5b4fc);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-    margin: 0 0 12px 0;
+    font-family: var(--font-display);
+    color: var(--text-primary);
+    margin: 0 0 var(--spacing-md) 0;
 }
 
-.pricing-header p {
-    font-size: 1.1rem;
-    color: #94a3b8;
-    margin: 0;
+.pricing-hero p {
+    color: var(--text-muted);
+    font-size: 0.875rem;
+    font-weight: 500;
+    margin-top: var(--spacing-sm);
 }
 
-.pricing-header .current-user {
+.pricing-hero .current-user {
     margin-top: 12px;
     padding: 8px 16px;
-    background: rgba(99, 102, 241, 0.15);
-    border-radius: 8px;
+    background: rgba(99, 102, 241, 0.1);
+    border: var(--border-thick) solid var(--primary);
+    border-radius: var(--radius-md);
     display: inline-block;
     font-size: 0.9rem;
-    color: #a5b4fc;
+    color: var(--primary);
+    font-weight: 600;
 }
 
 .pricing-loading {
     text-align: center;
-    color: #94a3b8;
+    color: var(--text-muted);
     padding: 48px;
 }
 
 .pricing-error {
     background: rgba(239, 68, 68, 0.1);
-    border: 1px solid rgba(239, 68, 68, 0.3);
+    border: var(--border-thick) solid #ef4444;
     color: #ef4444;
     padding: 12px 20px;
-    border-radius: 8px;
+    border-radius: var(--radius-md);
     text-align: center;
     margin-bottom: 24px;
 }
@@ -67,35 +71,38 @@
 .pricing-faq h2 {
     font-size: 1.5rem;
     font-weight: 700;
-    color: #fff;
+    color: var(--text-primary);
     text-align: center;
     margin: 0 0 32px 0;
+    font-family: var(--font-display);
 }
 
 .faq-item {
-    background: rgba(255, 255, 255, 0.05);
-    border-radius: 12px;
+    background: var(--bg-card);
+    border: var(--border-thick) solid var(--border);
+    border-radius: var(--radius-lg);
     padding: 20px 24px;
     margin-bottom: 16px;
+    box-shadow: var(--shadow-comic);
 }
 
 .faq-item h3 {
     font-size: 1rem;
-    font-weight: 600;
-    color: #fff;
+    font-weight: 700;
+    color: var(--text-primary);
     margin: 0 0 8px 0;
 }
 
 .faq-item p {
     font-size: 0.9rem;
-    color: #94a3b8;
+    color: var(--text-secondary);
     margin: 0;
     line-height: 1.6;
 }
 
 @media (max-width: 768px) {
-    .pricing-header h1 {
-        font-size: 2rem;
+    .pricing-hero h1 {
+        font-size: var(--font-size-2xl);
     }
 
     .pricing-cards {
