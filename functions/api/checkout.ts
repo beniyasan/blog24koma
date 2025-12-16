@@ -43,10 +43,19 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
             return jsonResponse({ error: 'userEmail and userId are required' }, origin, 400);
         }
 
+        // Check if Stripe is configured
+        if (!env.STRIPE_SECRET_KEY) {
+            return jsonResponse({ error: 'Stripe is not configured', debug: 'STRIPE_SECRET_KEY missing' }, origin, 500);
+        }
+
         // Get the appropriate price ID
         const priceId = body.plan === 'lite'
             ? env.STRIPE_LITE_PRICE_ID
             : env.STRIPE_PRO_PRICE_ID;
+
+        if (!priceId) {
+            return jsonResponse({ error: 'Price ID not configured', debug: `STRIPE_${body.plan.toUpperCase()}_PRICE_ID missing` }, origin, 500);
+        }
 
         // Check if user already exists in Stripe
         let stripeCustomerId: string | null = null;
@@ -58,20 +67,23 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
             stripeCustomerId = existingUser.stripe_customer_id as string;
         } else {
             // Create new Stripe customer
+            const customerParams = new URLSearchParams();
+            customerParams.append('email', body.userEmail);
+            customerParams.append('metadata[user_id]', body.userId);
+
             const customerResponse = await fetch('https://api.stripe.com/v1/customers', {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${env.STRIPE_SECRET_KEY}`,
                     'Content-Type': 'application/x-www-form-urlencoded',
                 },
-                body: new URLSearchParams({
-                    email: body.userEmail,
-                    metadata: { user_id: body.userId },
-                } as Record<string, string>),
+                body: customerParams,
             });
 
             if (!customerResponse.ok) {
-                throw new Error('Failed to create Stripe customer');
+                const errorText = await customerResponse.text();
+                console.error('Failed to create Stripe customer:', errorText);
+                return jsonResponse({ error: 'Failed to create Stripe customer', debug: errorText }, origin, 500);
             }
 
             const customer = await customerResponse.json() as { id: string };
