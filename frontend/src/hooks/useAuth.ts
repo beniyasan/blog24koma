@@ -56,9 +56,11 @@ export function useAuth(): UseAuthResult {
     }, [fetchAuth]);
 
     const login = useCallback(() => {
-        // Redirect to Cloudflare Access login
-        // Access will automatically redirect back after authentication
-        window.location.href = '/api/auth/me';
+        // Redirect to a protected path that triggers Cloudflare Access login
+        // Use the pricing page as the login trigger since it's protected by Access
+        // After login, user will be redirected back to their original page
+        const returnUrl = encodeURIComponent(window.location.pathname + window.location.search);
+        window.location.href = `/pricing?return=${returnUrl}`;
     }, []);
 
     const logout = useCallback(() => {

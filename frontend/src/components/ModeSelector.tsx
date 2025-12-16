@@ -39,9 +39,9 @@ export function ModeSelector({
     // Determine which modes to show
     const availableModes: GenerationMode[] = ['demo'];
 
-    // Add Lite/Pro if user has plan
+    // Add user's plan mode (only show their current plan, not lower tiers)
     if (isAuthenticated && userPlan) {
-        if (userPlan === 'lite' || userPlan === 'pro') {
+        if (userPlan === 'lite') {
             availableModes.push('lite');
         }
         if (userPlan === 'pro') {
