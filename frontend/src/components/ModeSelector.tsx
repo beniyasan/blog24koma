@@ -4,12 +4,24 @@ interface ModeSelectorProps {
     mode: GenerationMode;
     onModeChange: (mode: GenerationMode) => void;
     disabled?: boolean;
+    userPlan?: 'free' | 'lite' | 'pro' | null;
+    isAuthenticated?: boolean;
 }
 
-const MODE_INFO = {
+const MODE_INFO: Record<GenerationMode, { label: string; description: string; requiresPlan?: string }> = {
     demo: {
         label: 'Demo',
         description: 'キー不要（回数制限あり・透かしあり）',
+    },
+    lite: {
+        label: 'Lite',
+        description: '月30回まで（透かしなし）',
+        requiresPlan: 'lite',
+    },
+    pro: {
+        label: 'Pro',
+        description: '月100回まで（透かしなし・優先）',
+        requiresPlan: 'pro',
     },
     byok: {
         label: 'BYOK',
@@ -17,15 +29,37 @@ const MODE_INFO = {
     },
 };
 
-export function ModeSelector({ mode, onModeChange, disabled }: ModeSelectorProps) {
+export function ModeSelector({
+    mode,
+    onModeChange,
+    disabled,
+    userPlan,
+    isAuthenticated,
+}: ModeSelectorProps) {
+    // Determine which modes to show
+    const availableModes: GenerationMode[] = ['demo'];
+
+    // Add Lite/Pro if user has plan
+    if (isAuthenticated && userPlan) {
+        if (userPlan === 'lite' || userPlan === 'pro') {
+            availableModes.push('lite');
+        }
+        if (userPlan === 'pro') {
+            availableModes.push('pro');
+        }
+    }
+
+    // Always show BYOK
+    availableModes.push('byok');
+
     return (
         <div className="mode-selector">
             <div className="mode-tabs">
-                {(['demo', 'byok'] as GenerationMode[]).map((m) => (
+                {availableModes.map((m) => (
                     <button
                         key={m}
                         type="button"
-                        className={`mode-tab ${mode === m ? 'active' : ''}`}
+                        className={`mode-tab ${mode === m ? 'active' : ''} ${m === 'lite' || m === 'pro' ? 'premium' : ''}`}
                         onClick={() => onModeChange(m)}
                         disabled={disabled}
                     >

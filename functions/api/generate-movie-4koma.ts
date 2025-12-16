@@ -499,11 +499,16 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
         // 1. Validate input
         const body = validateRequest(rawBody);
         const isDemo = body.mode === 'demo';
+        const isLite = body.mode === 'lite';
+        const isPro = body.mode === 'pro';
+        const isSubscription = isLite || isPro;
 
-        // 2. For demo mode, check rate limit and get API key from env
+        // 2. Handle different modes
         let apiKey: string;
+        let subscriptionUser: { id: string; email: string } | null = null;
+
         if (isDemo) {
-            // Check if demo is configured
+            // Demo mode: server API key, daily limit
             if (!env.DEMO_GEMINI_API_KEY) {
                 return errorResponse('DEMO_UNAVAILABLE', '現在デモを一時停止しています。BYOKで利用できます。', 503, origin);
             }
@@ -520,30 +525,53 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
             const maxCount = parseInt(env.MOVIE_DEMO_DAILY_LIMIT || '1', 10);
 
             if (usedCount >= maxCount) {
-                return errorResponse('DEMO_LIMIT_EXCEEDED', '本日の動画デモ回数に達しました。BYOKで続ける →', 429, origin);
+                return errorResponse('DEMO_LIMIT_EXCEEDED', '本日の動画デモ回数に達しました。プランにアップグレード →', 429, origin);
             }
 
             apiKey = env.DEMO_GEMINI_API_KEY;
 
-            // Increment counter (do this before generation to avoid race conditions)
+            // Increment counter
             await env.DEMO_LIMITS?.put(key, String(usedCount + 1), {
                 expirationTtl: 86400, // 24 hours
             });
+        } else if (isSubscription) {
+            // Lite/Pro mode: server API key, monthly limit, requires authentication
+            if (!env.DEMO_GEMINI_API_KEY) {
+                return errorResponse('DEMO_UNAVAILABLE', 'サーバーAPIキーが設定されていません。', 503, origin);
+            }
+
+            // Require authentication
+            subscriptionUser = getUserFromJwt(request);
+            if (!subscriptionUser) {
+                return errorResponse('AUTH_REQUIRED', 'ログインが必要です。', 401, origin);
+            }
+
+            if (!env.DB) {
+                return errorResponse('INTERNAL_ERROR', 'データベースが設定されていません。', 500, origin);
+            }
+
+            // Check user's plan and usage
+            const usage = await getUserUsage(env.DB, subscriptionUser.id);
+            const requiredPlan = isLite ? 'lite' : 'pro';
+
+            // Check if user has the required plan or higher
+            const planOrder = { free: 0, lite: 1, pro: 2 };
+            if (planOrder[usage.plan as keyof typeof planOrder] < planOrder[requiredPlan]) {
+                return errorResponse('AUTH_REQUIRED', `${requiredPlan.toUpperCase()}プランへのアップグレードが必要です。`, 403, origin);
+            }
+
+            // Check monthly usage limit
+            if (!usage.allowed) {
+                return errorResponse('USAGE_LIMIT_EXCEEDED', `今月の利用回数（${usage.limit}回）に達しました。プランをアップグレードしてください。`, 429, origin);
+            }
+
+            apiKey = env.DEMO_GEMINI_API_KEY;
         } else {
-            // BYOK mode uses user's API key
+            // BYOK mode: user's API key, no limit
             if (!body.geminiApiKey) {
                 return errorResponse('VALIDATION_ERROR', 'geminiApiKey is required for BYOK mode', 400, origin);
             }
             apiKey = body.geminiApiKey;
-
-            // Check plan-based usage limits for authenticated users
-            const user = getUserFromJwt(request);
-            if (user && env.DB) {
-                const usage = await getUserUsage(env.DB, user.id);
-                if (usage.plan !== 'free' && !usage.allowed) {
-                    return errorResponse('USAGE_LIMIT_EXCEEDED', `今月の利用回数（${usage.limit}回）に達しました。プランをアップグレードしてください。`, 429, origin);
-                }
-            }
         }
 
         // 3. Check YouTube domain

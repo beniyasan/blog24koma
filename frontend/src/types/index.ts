@@ -1,6 +1,6 @@
 // ===== API Request/Response Types =====
 
-export type GenerationMode = 'demo' | 'byok';
+export type GenerationMode = 'demo' | 'lite' | 'pro' | 'byok';
 
 export interface DemoStatus {
   remainingCount: number;
@@ -97,6 +97,8 @@ export type ErrorCode =
   | 'RATE_LIMIT'
   | 'DEMO_LIMIT_EXCEEDED'
   | 'DEMO_UNAVAILABLE'
+  | 'USAGE_LIMIT_EXCEEDED'
+  | 'AUTH_REQUIRED'
   | 'INTERNAL_ERROR';
 
 export interface ApiError {
