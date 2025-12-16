@@ -33,9 +33,9 @@ export async function getUserUsage(
     userId: string
 ): Promise<UsageCheckResult> {
     try {
-        // Get user plan
+        // Get user plan (userId is actually email from JWT)
         const user = await db.prepare(
-            'SELECT plan FROM users WHERE id = ?'
+            'SELECT plan FROM users WHERE email = ?'
         ).bind(userId).first();
 
         const plan = (user?.plan as 'free' | 'lite' | 'pro') || 'free';
