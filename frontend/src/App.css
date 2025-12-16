@@ -490,10 +490,63 @@
 .nav-links {
     display: flex;
     justify-content: center;
+    align-items: center;
     gap: var(--spacing-md);
     padding: var(--spacing-md) var(--spacing-lg);
     border-bottom: var(--border-thick) solid var(--border);
     background: var(--bg-primary);
+    flex-wrap: wrap;
+}
+
+.nav-auth {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    margin-left: auto;
+}
+
+.user-email {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    max-width: 150px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.user-plan {
+    font-size: 0.75rem;
+    font-weight: 700;
+    padding: 2px 8px;
+    background: var(--primary);
+    color: white;
+    border-radius: var(--radius-sm);
+}
+
+.auth-button {
+    padding: var(--spacing-xs) var(--spacing-md);
+    border: var(--border-thick) solid var(--border);
+    border-radius: var(--radius-md);
+    font-weight: 700;
+    font-size: 0.8rem;
+    cursor: pointer;
+    background: var(--bg-card);
+    color: var(--text-primary);
+    transition: all 0.1s ease;
+}
+
+.auth-button:hover {
+    transform: translate(1px, 1px);
+}
+
+.auth-button.primary {
+    background: var(--primary);
+    color: white;
+    box-shadow: var(--shadow-comic);
+}
+
+.auth-button.primary:hover {
+    box-shadow: 2px 2px 0 var(--border);
 }
 
 .nav-link {

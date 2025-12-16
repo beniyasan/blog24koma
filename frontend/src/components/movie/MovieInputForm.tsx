@@ -14,6 +14,8 @@ interface MovieInputFormProps {
     mode: GenerationMode;
     onModeChange: (mode: GenerationMode) => void;
     demoStatus: DemoStatus | null;
+    userPlan?: 'free' | 'lite' | 'pro';
+    isAuthenticated?: boolean;
 }
 
 export function MovieInputForm({
@@ -23,7 +25,9 @@ export function MovieInputForm({
     onModelSettingsChange,
     mode,
     onModeChange,
-    demoStatus
+    demoStatus,
+    userPlan,
+    isAuthenticated,
 }: MovieInputFormProps) {
     const [youtubeUrl, setYoutubeUrl] = useState('');
     const [userPrompt, setUserPrompt] = useState('');
@@ -105,7 +109,7 @@ export function MovieInputForm({
                 </div>
 
                 {/* Mode Selector */}
-                <ModeSelector mode={mode} onModeChange={handleModeChange} disabled={loading} />
+                <ModeSelector mode={mode} onModeChange={handleModeChange} disabled={loading} userPlan={userPlan} isAuthenticated={isAuthenticated} />
 
                 {/* Demo Limit Display */}
                 {mode === 'demo' && (

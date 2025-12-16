@@ -14,6 +14,8 @@ interface InputFormProps {
     mode: GenerationMode;
     onModeChange: (mode: GenerationMode) => void;
     demoStatus: DemoStatus | null;
+    userPlan?: 'free' | 'lite' | 'pro';
+    isAuthenticated?: boolean;
 }
 
 export function InputForm({
@@ -24,6 +26,8 @@ export function InputForm({
     mode,
     onModeChange,
     demoStatus,
+    userPlan,
+    isAuthenticated,
 }: InputFormProps) {
     const [articleUrl, setArticleUrl] = useState('');
     const [userPrompt, setUserPrompt] = useState('');
@@ -104,6 +108,8 @@ export function InputForm({
                     mode={mode}
                     onModeChange={handleModeChange}
                     disabled={loading}
+                    userPlan={userPlan}
+                    isAuthenticated={isAuthenticated}
                 />
 
                 {mode === 'demo' && (

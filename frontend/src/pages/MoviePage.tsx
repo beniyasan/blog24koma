@@ -7,6 +7,7 @@ import { ErrorDisplay } from '../components/ErrorDisplay';
 import { useGenerateMovie4Koma } from '../hooks/useGenerateMovie4Koma';
 import { useModelSettings } from '../hooks/useModelSettings';
 import { useMovieDemoStatus } from '../hooks/useMovieDemoStatus';
+import { useAuth } from '../hooks/useAuth';
 import type { GenerateMovie4KomaRequest, GenerationMode } from '../types';
 
 export function MoviePage() {
@@ -14,6 +15,7 @@ export function MoviePage() {
     const { result, loading, error, generate, reset } = useGenerateMovie4Koma();
     const { settings: modelSettings, ...modelSettingsActions } = useModelSettings();
     const { status: demoStatus, refresh: refreshDemoStatus } = useMovieDemoStatus();
+    const { isAuthenticated, user, login, logout } = useAuth();
 
     const handleGenerate = (data: GenerateMovie4KomaRequest) => {
         generate(data);
@@ -32,7 +34,18 @@ export function MoviePage() {
                 <nav className="nav-links">
                     <Link to="/" className="nav-link">ブログ4コマ</Link>
                     <Link to="/movie" className="nav-link active">動画4コマ</Link>
-                    <Link to="/pricing" className="nav-link nav-pricing">料金プラン</Link>
+                    <Link to="/pricing" className="nav-link">料金プラン</Link>
+                    <div className="nav-auth">
+                        {isAuthenticated && user ? (
+                            <>
+                                <span className="user-email">{user.email}</span>
+                                <span className="user-plan">{user.plan.toUpperCase()}</span>
+                                <button onClick={logout} className="auth-button">ログアウト</button>
+                            </>
+                        ) : (
+                            <button onClick={login} className="auth-button primary">ログイン</button>
+                        )}
+                    </div>
                 </nav>
                 <div className="hero-content">
                     <h1 className="header-title">動画4コマメーカー</h1>
@@ -63,6 +76,8 @@ export function MoviePage() {
                         mode={mode}
                         onModeChange={setMode}
                         demoStatus={demoStatus}
+                        userPlan={user?.plan as 'free' | 'lite' | 'pro' | undefined}
+                        isAuthenticated={isAuthenticated}
                     />
                 )}
 
