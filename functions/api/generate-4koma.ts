@@ -7,11 +7,13 @@ import type {
     ErrorCode,
 } from '../../frontend/src/types';
 import { getCorsHeaders, corsPreflightResponse } from './_cors';
+import { getUserUsage, recordUsage, getUserFromJwt } from './_usage';
 
 // ===== Env Interface =====
 interface Env {
     URL_LOGS: KVNamespace;
     DEMO_LIMITS: KVNamespace;
+    DB: D1Database;
     DEMO_GEMINI_API_KEY: string;
     DEMO_DAILY_LIMIT: string;
 }
@@ -584,6 +586,15 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
                 return errorResponse('VALIDATION_ERROR', 'geminiApiKey is required for BYOK mode', 400, origin);
             }
             apiKey = body.geminiApiKey;
+
+            // Check plan-based usage limits for authenticated users
+            const user = getUserFromJwt(request);
+            if (user && env.DB) {
+                const usage = await getUserUsage(env.DB, user.id);
+                if (usage.plan !== 'free' && !usage.allowed) {
+                    return errorResponse('USAGE_LIMIT_EXCEEDED', `今月の利用回数（${usage.limit}回）に達しました。プランをアップグレードしてください。`, 429, origin);
+                }
+            }
         }
 
         // 3. Check URL whitelist

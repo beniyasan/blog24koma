@@ -32,6 +32,7 @@ export function BlogPage() {
                 <nav className="nav-links">
                     <Link to="/" className="nav-link active">ブログ4コマ</Link>
                     <Link to="/movie" className="nav-link">動画4コマ</Link>
+                    <Link to="/pricing" className="nav-link nav-pricing">料金プラン</Link>
                 </nav>
                 <div className="hero-content">
                     <h1 className="header-title">ブログ4コマメーカー</h1>

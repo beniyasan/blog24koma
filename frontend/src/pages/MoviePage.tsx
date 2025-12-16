@@ -32,6 +32,7 @@ export function MoviePage() {
                 <nav className="nav-links">
                     <Link to="/" className="nav-link">ブログ4コマ</Link>
                     <Link to="/movie" className="nav-link active">動画4コマ</Link>
+                    <Link to="/pricing" className="nav-link nav-pricing">料金プラン</Link>
                 </nav>
                 <div className="hero-content">
                     <h1 className="header-title">動画4コマメーカー</h1>
