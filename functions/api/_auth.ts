@@ -161,25 +161,62 @@ export async function authenticateRequest(
 }
 
 /**
- * Get user from Access headers (simpler method, trusts Cloudflare)
- * Use this when Access is configured to protect the route
+ * Get user from Access headers or JWT
+ * Decodes the JWT to get user email if header is not present
  */
 export function getUserFromAccessHeaders(request: Request): AuthResult {
-    const email = request.headers.get('CF-Access-Authenticated-User-Email');
-    const userId = request.headers.get('CF-Access-Jwt-Assertion');
+    // First try the email header
+    const emailHeader = request.headers.get('CF-Access-Authenticated-User-Email');
 
-    if (!email) {
-        return { authenticated: false, error: 'Not authenticated' };
+    if (emailHeader) {
+        return {
+            authenticated: true,
+            user: {
+                id: emailHeader,
+                email: emailHeader,
+            },
+        };
     }
 
-    // Generate a stable user ID from email
-    const id = email; // or use a hash
+    // If no email header, try to decode the JWT from header or cookie
+    const jwtHeader = request.headers.get('CF-Access-JWT-Assertion');
+    const cookies = request.headers.get('Cookie') || '';
+    const jwtCookie = cookies.match(/CF_Authorization=([^;]+)/)?.[1];
 
-    return {
-        authenticated: true,
-        user: {
-            id,
-            email,
-        },
-    };
+    const token = jwtHeader || jwtCookie;
+
+    if (!token) {
+        return { authenticated: false, error: 'No authentication token' };
+    }
+
+    try {
+        // Decode JWT payload (no verification - Cloudflare already verified it)
+        const parts = token.split('.');
+        if (parts.length !== 3) {
+            return { authenticated: false, error: 'Invalid JWT format' };
+        }
+
+        const payloadB64 = parts[1];
+        // Replace URL-safe characters
+        const base64 = payloadB64.replace(/-/g, '+').replace(/_/g, '/');
+        // Pad if needed
+        const padded = base64.padEnd(base64.length + (4 - base64.length % 4) % 4, '=');
+        const payloadJson = atob(padded);
+        const payload = JSON.parse(payloadJson) as { email?: string; sub?: string };
+
+        if (!payload.email) {
+            return { authenticated: false, error: 'No email in JWT' };
+        }
+
+        return {
+            authenticated: true,
+            user: {
+                id: payload.sub || payload.email,
+                email: payload.email,
+            },
+        };
+    } catch (error) {
+        return { authenticated: false, error: 'Failed to decode JWT' };
+    }
 }
+
