@@ -1,33 +1,31 @@
 // Movie Demo status API endpoint
 // Returns the remaining demo count for movie 4-koma (limit: 1 per day)
 
+import { getCorsHeaders, corsPreflightResponse } from './_cors';
+
 interface Env {
     DEMO_LIMITS: KVNamespace;
     MOVIE_DEMO_DAILY_LIMIT: string;
     DEMO_GEMINI_API_KEY: string;
 }
 
-const corsHeaders = {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'GET, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type',
-};
-
-function jsonResponse(data: unknown, status = 200): Response {
+function jsonResponse(data: unknown, origin: string | null, status = 200): Response {
     return new Response(JSON.stringify(data), {
         status,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...getCorsHeaders(origin), 'Content-Type': 'application/json' },
     });
 }
 
-export const onRequestOptions: PagesFunction<Env> = async () => {
-    return new Response(null, { headers: corsHeaders });
+export const onRequestOptions: PagesFunction<Env> = async (context) => {
+    const origin = context.request.headers.get('Origin');
+    return corsPreflightResponse(origin);
 };
 
 export const onRequestGet: PagesFunction<Env> = async (context) => {
-    try {
-        const { env, request } = context;
+    const { env, request } = context;
+    const origin = request.headers.get('Origin');
 
+    try {
         // Get client IP for rate limiting
         const clientIP = request.headers.get('CF-Connecting-IP') ||
             request.headers.get('X-Forwarded-For')?.split(',')[0] ||
@@ -58,7 +56,7 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
             message: !isConfigured
                 ? '現在デモを一時停止しています。BYOKで利用できます。'
                 : undefined,
-        });
+        }, origin);
     } catch (error) {
         console.error('Movie demo status error:', error instanceof Error ? error.message : 'Unknown error');
         return jsonResponse({
@@ -66,6 +64,6 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
             maxCount: 1,
             isAvailable: false,
             message: 'ステータスの取得に失敗しました',
-        });
+        }, origin);
     }
 };

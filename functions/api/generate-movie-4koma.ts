@@ -6,6 +6,7 @@ import type {
     ApiError,
     ErrorCode,
 } from '../../frontend/src/types';
+import { getCorsHeaders, corsPreflightResponse } from './_cors';
 
 // ===== Env Interface =====
 interface Env {
@@ -21,12 +22,7 @@ const DEFAULT_STORYBOARD_MODEL = 'gemini-2.5-flash';
 const DEFAULT_IMAGE_MODEL = 'gemini-3-pro-image-preview';
 const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta';
 
-// ===== CORS Headers =====
-const corsHeaders = {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type',
-};
+// ===== CORS Headers (now handled by _cors.ts) =====
 
 // ===== Error Classes =====
 class ValidationError extends Error {
@@ -51,16 +47,16 @@ class GeminiError extends Error {
 }
 
 // ===== Response Helpers =====
-function jsonResponse(data: unknown, status = 200): Response {
+function jsonResponse(data: unknown, origin: string | null, status = 200): Response {
     return new Response(JSON.stringify(data), {
         status,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...getCorsHeaders(origin), 'Content-Type': 'application/json' },
     });
 }
 
-function errorResponse(code: ErrorCode, message: string, status: number): Response {
+function errorResponse(code: ErrorCode, message: string, status: number, origin: string | null): Response {
     const error: ApiError = { error: { code, message } };
-    return jsonResponse(error, status);
+    return jsonResponse(error, origin, status);
 }
 
 // ===== Validation =====
@@ -254,10 +250,13 @@ URL: ${youtubeUrl}
 ${videoInfo.description ? `説明: ${videoInfo.description}` : ''}`;
 
     const response = await fetch(
-        `${GEMINI_API_BASE}/models/${model}:generateContent?key=${apiKey}`,
+        `${GEMINI_API_BASE}/models/${model}:generateContent`,
         {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+                'Content-Type': 'application/json',
+                'x-goog-api-key': apiKey,
+            },
             body: JSON.stringify({
                 contents: [{ role: 'user', parts: [{ text: systemPrompt + '\n\n' + userContent }] }],
                 generationConfig: {
@@ -339,10 +338,13 @@ ${movieSummary.summary}
 ${userPrompt ? `補足指示:\n${userPrompt}` : ''}`;
 
     const response = await fetch(
-        `${GEMINI_API_BASE}/models/${model}:generateContent?key=${apiKey}`,
+        `${GEMINI_API_BASE}/models/${model}:generateContent`,
         {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+                'Content-Type': 'application/json',
+                'x-goog-api-key': apiKey,
+            },
             body: JSON.stringify({
                 contents: [{ role: 'user', parts: [{ text: systemPrompt + '\n\n' + userContent }] }],
                 generationConfig: {
@@ -428,10 +430,13 @@ async function generate4KomaImage(apiKey: string, storyboard: StoryboardPanel[],
 ${panelDescriptions}`;
 
     const response = await fetch(
-        `${GEMINI_API_BASE}/models/${model}:generateContent?key=${apiKey}`,
+        `${GEMINI_API_BASE}/models/${model}:generateContent`,
         {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+                'Content-Type': 'application/json',
+                'x-goog-api-key': apiKey,
+            },
             body: JSON.stringify({
                 contents: [{ role: 'user', parts: [{ text: prompt }] }],
                 generationConfig: {
@@ -477,13 +482,16 @@ async function logUrlToKV(kv: KVNamespace, url: string, type: 'blog' | 'movie'):
 }
 
 // ===== Request Handlers =====
-export const onRequestOptions: PagesFunction<Env> = async () => {
-    return new Response(null, { headers: corsHeaders });
+export const onRequestOptions: PagesFunction<Env> = async (context) => {
+    const origin = context.request.headers.get('Origin');
+    return corsPreflightResponse(origin);
 };
 
 export const onRequestPost: PagesFunction<Env> = async (context) => {
+    const { request, env } = context;
+    const origin = request.headers.get('Origin');
+
     try {
-        const { request, env } = context;
         const rawBody = await request.json();
 
         // 1. Validate input
@@ -495,7 +503,7 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
         if (isDemo) {
             // Check if demo is configured
             if (!env.DEMO_GEMINI_API_KEY) {
-                return errorResponse('DEMO_UNAVAILABLE', '現在デモを一時停止しています。BYOKで利用できます。', 503);
+                return errorResponse('DEMO_UNAVAILABLE', '現在デモを一時停止しています。BYOKで利用できます。', 503, origin);
             }
 
             // Check rate limit
@@ -510,7 +518,7 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
             const maxCount = parseInt(env.MOVIE_DEMO_DAILY_LIMIT || '1', 10);
 
             if (usedCount >= maxCount) {
-                return errorResponse('DEMO_LIMIT_EXCEEDED', '本日の動画デモ回数に達しました。BYOKで続ける →', 429);
+                return errorResponse('DEMO_LIMIT_EXCEEDED', '本日の動画デモ回数に達しました。BYOKで続ける →', 429, origin);
             }
 
             apiKey = env.DEMO_GEMINI_API_KEY;
@@ -522,7 +530,7 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
         } else {
             // BYOK mode uses user's API key
             if (!body.geminiApiKey) {
-                return errorResponse('VALIDATION_ERROR', 'geminiApiKey is required for BYOK mode', 400);
+                return errorResponse('VALIDATION_ERROR', 'geminiApiKey is required for BYOK mode', 400, origin);
             }
             apiKey = body.geminiApiKey;
         }
@@ -564,24 +572,24 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
 
         // 10. Return response
         const response: GenerateMovie4KomaResponse = { movieSummary, storyboard, imageBase64 };
-        return jsonResponse(response);
+        return jsonResponse(response, origin);
     } catch (error) {
         if (error instanceof ValidationError) {
-            return errorResponse('VALIDATION_ERROR', error.message, 400);
+            return errorResponse('VALIDATION_ERROR', error.message, 400, origin);
         }
         if (error instanceof DomainError) {
-            return errorResponse('INVALID_DOMAIN', error.message, 400);
+            return errorResponse('INVALID_DOMAIN', error.message, 400, origin);
         }
         if (error instanceof FetchError) {
             // NOTE: Avoid 502 because Cloudflare may replace the response body with its own error page.
-            return errorResponse('FETCH_ERROR', error.message, 500);
+            return errorResponse('FETCH_ERROR', error.message, 500, origin);
         }
         if (error instanceof GeminiError) {
             // NOTE: Avoid 502 because Cloudflare may replace the response body with its own error page.
-            return errorResponse('GEMINI_ERROR', error.message, 500);
+            return errorResponse('GEMINI_ERROR', error.message, 500, origin);
         }
 
         console.error('Unexpected error:', error instanceof Error ? error.message : 'Unknown error');
-        return errorResponse('INTERNAL_ERROR', 'An unexpected error occurred', 500);
+        return errorResponse('INTERNAL_ERROR', 'An unexpected error occurred', 500, origin);
     }
 };
