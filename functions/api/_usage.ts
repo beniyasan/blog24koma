@@ -34,12 +34,15 @@ export async function getUserUsage(
 ): Promise<UsageCheckResult> {
     try {
         // Get user plan (userId is actually email from JWT)
+        console.log('[getUserUsage] Looking up user by email:', userId);
         const user = await db.prepare(
             'SELECT plan FROM users WHERE email = ?'
         ).bind(userId).first();
+        console.log('[getUserUsage] DB result:', user);
 
         const plan = (user?.plan as 'free' | 'lite' | 'pro') || 'free';
         const limit = PLAN_LIMITS[plan];
+        console.log('[getUserUsage] Resolved plan:', plan, 'limit:', limit);
 
         // Free plan users should use demo mode
         if (plan === 'free') {
