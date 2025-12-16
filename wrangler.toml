@@ -6,8 +6,8 @@ pages_build_output_dir = "frontend/dist"
 
 # Environment variables (set in Cloudflare dashboard or .dev.vars for local)
 [vars]
-DEMO_DAILY_LIMIT = "1"
-MOVIE_DEMO_DAILY_LIMIT = "1"
+DEMO_DAILY_LIMIT = "5"
+MOVIE_DEMO_DAILY_LIMIT = "3"
 
 # KV Namespaces for URL logging
 [[kv_namespaces]]
