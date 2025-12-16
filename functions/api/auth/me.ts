@@ -25,25 +25,13 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
     const origin = request.headers.get('Origin');
 
     try {
-        // Debug: Get Access-related headers
-        const accessEmail = request.headers.get('CF-Access-Authenticated-User-Email');
-        const accessJwt = request.headers.get('CF-Access-JWT-Assertion');
-        const cookie = request.headers.get('Cookie');
-
-        // Get user from Access headers
+        // Get user from Access headers/JWT
         const auth = getUserFromAccessHeaders(request);
 
         if (!auth.authenticated || !auth.user) {
             return jsonResponse({
                 authenticated: false,
                 user: null,
-                debug: {
-                    hasAccessEmail: !!accessEmail,
-                    accessEmail: accessEmail || null,
-                    hasAccessJwt: !!accessJwt,
-                    hasCookie: !!cookie,
-                    cookieContainsAuth: cookie?.includes('CF_Authorization') || false,
-                },
             }, origin);
         }
 
