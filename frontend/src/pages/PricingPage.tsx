@@ -1,12 +1,7 @@
 import React, { useState } from 'react';
 import { PricingCard } from '../components/PricingCard';
+import { useAuth } from '../hooks/useAuth';
 import './PricingPage.css';
-
-interface PricingPageProps {
-    userId?: string;
-    userEmail?: string;
-    currentPlan?: 'free' | 'lite' | 'pro';
-}
 
 const PLANS = [
     {
@@ -48,23 +43,23 @@ const PLANS = [
     },
 ];
 
-export const PricingPage: React.FC<PricingPageProps> = ({
-    userId,
-    userEmail,
-    currentPlan = 'free',
-}) => {
-    const [isLoading, setIsLoading] = useState<string | null>(null);
+export const PricingPage: React.FC = () => {
+    const { isLoading: isAuthLoading, isAuthenticated, user, login } = useAuth();
+    const [isCheckoutLoading, setIsCheckoutLoading] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
+
+    const currentPlan = user?.plan || 'free';
 
     const handleSelectPlan = async (planId: string) => {
         if (planId === 'free' || planId === currentPlan) return;
 
-        if (!userId || !userEmail) {
-            setError('ログインが必要です');
+        // If not logged in, redirect to login
+        if (!isAuthenticated || !user) {
+            login();
             return;
         }
 
-        setIsLoading(planId);
+        setIsCheckoutLoading(planId);
         setError(null);
 
         try {
@@ -73,8 +68,8 @@ export const PricingPage: React.FC<PricingPageProps> = ({
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     plan: planId,
-                    userId,
-                    userEmail,
+                    userId: user.id,
+                    userEmail: user.email,
                 }),
             });
 
@@ -89,7 +84,7 @@ export const PricingPage: React.FC<PricingPageProps> = ({
         } catch (err) {
             setError(err instanceof Error ? err.message : 'エラーが発生しました');
         } finally {
-            setIsLoading(null);
+            setIsCheckoutLoading(null);
         }
     };
 
@@ -98,6 +93,11 @@ export const PricingPage: React.FC<PricingPageProps> = ({
             <div className="pricing-header">
                 <h1>料金プラン</h1>
                 <p>あなたに合ったプランを選んでください</p>
+                {isAuthenticated && user && (
+                    <p className="current-user">
+                        ログイン中: {user.email} ({user.plan.toUpperCase()})
+                    </p>
+                )}
             </div>
 
             {error && (
@@ -106,21 +106,25 @@ export const PricingPage: React.FC<PricingPageProps> = ({
                 </div>
             )}
 
-            <div className="pricing-cards">
-                {PLANS.map((plan) => (
-                    <PricingCard
-                        key={plan.id}
-                        name={plan.name}
-                        price={plan.price}
-                        period={plan.period}
-                        features={plan.features}
-                        isPopular={plan.isPopular}
-                        isCurrentPlan={plan.id === currentPlan}
-                        onSelect={() => handleSelectPlan(plan.id)}
-                        disabled={isLoading !== null || plan.id === 'free'}
-                    />
-                ))}
-            </div>
+            {isAuthLoading ? (
+                <div className="pricing-loading">読み込み中...</div>
+            ) : (
+                <div className="pricing-cards">
+                    {PLANS.map((plan) => (
+                        <PricingCard
+                            key={plan.id}
+                            name={plan.name}
+                            price={plan.price}
+                            period={plan.period}
+                            features={plan.features}
+                            isPopular={plan.isPopular}
+                            isCurrentPlan={plan.id === currentPlan}
+                            onSelect={() => handleSelectPlan(plan.id)}
+                            disabled={isCheckoutLoading !== null || plan.id === 'free'}
+                        />
+                    ))}
+                </div>
+            )}
 
             <div className="pricing-faq">
                 <h2>よくある質問</h2>
