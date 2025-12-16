@@ -15,7 +15,7 @@ export function BlogPage() {
     const { result, loading, error, generate, reset } = useGenerate4Koma();
     const { settings: modelSettings, ...modelSettingsActions } = useModelSettings();
     const { status: demoStatus, refresh: refreshDemoStatus } = useDemoStatus();
-    const { isAuthenticated, user, login, logout } = useAuth();
+    const { isAuthenticated, user, login, logout, openPortal } = useAuth();
 
     const handleGenerate = (data: Generate4KomaRequest) => {
         generate(data);
@@ -37,11 +37,30 @@ export function BlogPage() {
                     <Link to="/pricing" className="nav-link">料金プラン</Link>
                     <div className="nav-auth">
                         {isAuthenticated && user ? (
-                            <>
-                                <span className="user-email">{user.email}</span>
-                                <span className="user-plan">{user.plan.toUpperCase()}</span>
-                                <button onClick={logout} className="auth-button">ログアウト</button>
-                            </>
+                            <div className="user-menu">
+                                <button className="user-menu-trigger">
+                                    <span className="user-plan">{user.plan.toUpperCase()}</span>
+                                    <span>▼</span>
+                                </button>
+                                <div className="user-menu-dropdown">
+                                    <div className="user-menu-item" style={{ cursor: 'default', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                                        {user.email}
+                                    </div>
+                                    <div className="user-menu-divider" />
+                                    {user.hasStripeCustomer && (
+                                        <button onClick={openPortal} className="user-menu-item primary">
+                                            プラン管理
+                                        </button>
+                                    )}
+                                    <Link to="/pricing" className="user-menu-item">
+                                        料金プラン
+                                    </Link>
+                                    <div className="user-menu-divider" />
+                                    <button onClick={logout} className="user-menu-item danger">
+                                        ログアウト
+                                    </button>
+                                </div>
+                            </div>
                         ) : (
                             <button onClick={login} className="auth-button primary">ログイン</button>
                         )}

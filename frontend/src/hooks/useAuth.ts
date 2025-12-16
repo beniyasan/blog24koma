@@ -17,6 +17,7 @@ interface AuthState {
 interface UseAuthResult extends AuthState {
     login: () => void;
     logout: () => void;
+    openPortal: () => Promise<void>;
     refetch: () => void;
 }
 
@@ -57,8 +58,6 @@ export function useAuth(): UseAuthResult {
 
     const login = useCallback(() => {
         // Redirect to a protected path that triggers Cloudflare Access login
-        // Use the pricing page as the login trigger since it's protected by Access
-        // After login, user will be redirected back to their original page
         const returnUrl = encodeURIComponent(window.location.pathname + window.location.search);
         window.location.href = `/pricing?return=${returnUrl}`;
     }, []);
@@ -68,10 +67,32 @@ export function useAuth(): UseAuthResult {
         window.location.href = '/cdn-cgi/access/logout';
     }, []);
 
+    const openPortal = useCallback(async () => {
+        try {
+            const response = await fetch('/api/portal', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ returnUrl: window.location.href }),
+            });
+            const data = await response.json();
+
+            if (data.url) {
+                window.location.href = data.url;
+            } else if (data.error) {
+                console.error('Portal error:', data.error);
+                alert('プラン管理ページを開けませんでした。');
+            }
+        } catch (err) {
+            console.error('Portal error:', err);
+            alert('プラン管理ページを開けませんでした。');
+        }
+    }, []);
+
     return {
         ...state,
         login,
         logout,
+        openPortal,
         refetch: fetchAuth,
     };
 }

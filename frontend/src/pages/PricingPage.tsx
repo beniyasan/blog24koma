@@ -45,7 +45,7 @@ const PLANS = [
 ];
 
 export const PricingPage: React.FC = () => {
-    const { isLoading: isAuthLoading, isAuthenticated, user, login, logout } = useAuth();
+    const { isLoading: isAuthLoading, isAuthenticated, user, login, logout, openPortal } = useAuth();
     const [isCheckoutLoading, setIsCheckoutLoading] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
 
@@ -98,11 +98,27 @@ export const PricingPage: React.FC = () => {
                     <Link to="/pricing" className="nav-link active">料金プラン</Link>
                     <div className="nav-auth">
                         {isAuthenticated && user ? (
-                            <>
-                                <span className="user-email">{user.email}</span>
-                                <span className="user-plan">{user.plan.toUpperCase()}</span>
-                                <button onClick={logout} className="auth-button">ログアウト</button>
-                            </>
+                            <div className="user-menu">
+                                <button className="user-menu-trigger">
+                                    <span className="user-plan">{user.plan.toUpperCase()}</span>
+                                    <span>▼</span>
+                                </button>
+                                <div className="user-menu-dropdown">
+                                    <div className="user-menu-item" style={{ cursor: 'default', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                                        {user.email}
+                                    </div>
+                                    <div className="user-menu-divider" />
+                                    {user.hasStripeCustomer && (
+                                        <button onClick={openPortal} className="user-menu-item primary">
+                                            プラン管理
+                                        </button>
+                                    )}
+                                    <div className="user-menu-divider" />
+                                    <button onClick={logout} className="user-menu-item danger">
+                                        ログアウト
+                                    </button>
+                                </div>
+                            </div>
                         ) : (
                             <button onClick={login} className="auth-button primary">ログイン</button>
                         )}
