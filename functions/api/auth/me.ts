@@ -25,6 +25,11 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
     const origin = request.headers.get('Origin');
 
     try {
+        // Debug: Get Access-related headers
+        const accessEmail = request.headers.get('CF-Access-Authenticated-User-Email');
+        const accessJwt = request.headers.get('CF-Access-JWT-Assertion');
+        const cookie = request.headers.get('Cookie');
+
         // Get user from Access headers
         const auth = getUserFromAccessHeaders(request);
 
@@ -32,6 +37,13 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
             return jsonResponse({
                 authenticated: false,
                 user: null,
+                debug: {
+                    hasAccessEmail: !!accessEmail,
+                    accessEmail: accessEmail || null,
+                    hasAccessJwt: !!accessJwt,
+                    hasCookie: !!cookie,
+                    cookieContainsAuth: cookie?.includes('CF_Authorization') || false,
+                },
             }, origin);
         }
 
