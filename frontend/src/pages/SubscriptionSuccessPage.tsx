@@ -28,6 +28,7 @@ export function SubscriptionSuccessPage() {
                     <Link to="/" className="nav-link">ブログ4コマ</Link>
                     <Link to="/movie" className="nav-link">動画4コマ</Link>
                     <Link to="/pricing" className="nav-link">料金プラン</Link>
+                    <Link to="/howto" className="nav-link">使い方</Link>
                 </nav>
                 <div className="hero-content">
                     <h1 className="header-title">サブスクリプション完了！</h1>

@@ -35,6 +35,7 @@ export function MoviePage() {
                     <Link to="/" className="nav-link">ブログ4コマ</Link>
                     <Link to="/movie" className="nav-link active">動画4コマ</Link>
                     <Link to="/pricing" className="nav-link">料金プラン</Link>
+                    <Link to="/howto" className="nav-link">使い方</Link>
                     <div className="nav-auth">
                         {isAuthenticated && user ? (
                             <div className="user-menu">

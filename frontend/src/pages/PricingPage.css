@@ -63,6 +63,44 @@
     margin-bottom: 64px;
 }
 
+.pricing-precheckout {
+    max-width: 700px;
+    margin: 0 auto 32px auto;
+    padding: 18px 20px;
+    background: var(--bg-card);
+    border: var(--border-thick) solid var(--border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-comic);
+}
+
+.pricing-precheckout h2 {
+    font-size: 1.125rem;
+    font-weight: 800;
+    color: var(--text-primary);
+    margin: 0 0 8px 0;
+    font-family: var(--font-display);
+}
+
+.pricing-precheckout-note {
+    margin: 0 0 12px 0;
+    color: var(--text-secondary);
+    line-height: 1.6;
+    font-size: 0.9rem;
+}
+
+.pricing-precheckout-consent {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    color: var(--text-primary);
+    font-size: 0.9rem;
+    line-height: 1.4;
+}
+
+.pricing-precheckout-consent input {
+    margin-top: 2px;
+}
+
 .pricing-faq {
     max-width: 700px;
     margin: 0 auto;

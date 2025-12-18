@@ -10,10 +10,16 @@ interface Env {
     STRIPE_PRO_PRICE_ID: string;
 }
 
+interface CheckoutConsent {
+    accepted: boolean;
+    version: string;
+}
+
 interface CheckoutRequest {
     plan: 'lite' | 'pro';
     userEmail: string;
     userId: string;
+    consent?: CheckoutConsent;
 }
 
 function jsonResponse(data: unknown, origin: string | null, status = 200): Response {
@@ -41,6 +47,10 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
 
         if (!body.userEmail || !body.userId) {
             return jsonResponse({ error: 'userEmail and userId are required' }, origin, 400);
+        }
+
+        if (!body.consent?.accepted || !body.consent?.version) {
+            return jsonResponse({ error: 'Consent is required before checkout' }, origin, 400);
         }
 
         // Check if Stripe is configured
@@ -97,9 +107,32 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
             `).bind(body.userId, body.userEmail, stripeCustomerId, stripeCustomerId).run();
         }
 
+        // Store consent evidence (best-effort)
+        try {
+            const ip = request.headers.get('CF-Connecting-IP')
+                || request.headers.get('X-Forwarded-For')
+                || request.headers.get('X-Real-IP');
+            const userAgent = request.headers.get('User-Agent');
+            const acceptedAt = new Date().toISOString();
+
+            await env.DB.prepare(`
+                INSERT INTO consents (user_id, kind, version, accepted_at, ip, user_agent)
+                VALUES (?, 'subscription_checkout', ?, ?, ?, ?)
+            `).bind(
+                body.userId,
+                body.consent.version,
+                acceptedAt,
+                ip,
+                userAgent ? userAgent.slice(0, 512) : null
+            ).run();
+        } catch (e) {
+            console.warn('Failed to store consent evidence (non-blocking):', e);
+        }
+
         // Create Stripe Checkout session
         const successUrl = `${origin || 'https://blog4koma.com'}/subscription/success?session_id={CHECKOUT_SESSION_ID}`;
         const cancelUrl = `${origin || 'https://blog4koma.com'}/pricing`;
+        const consentAcceptedAt = new Date().toISOString();
 
         const sessionResponse = await fetch('https://api.stripe.com/v1/checkout/sessions', {
             method: 'POST',
@@ -116,6 +149,8 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
                 cancel_url: cancelUrl,
                 'metadata[user_id]': body.userId,
                 'metadata[plan]': body.plan,
+                'metadata[consent_version]': body.consent.version,
+                'metadata[consent_accepted_at]': consentAcceptedAt,
             }),
         });
 

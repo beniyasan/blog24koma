@@ -5,12 +5,15 @@ interface Env {
     DB: D1Database;
     STRIPE_SECRET_KEY: string;
     STRIPE_WEBHOOK_SECRET: string;
+    STRIPE_LITE_PRICE_ID: string;
+    STRIPE_PRO_PRICE_ID: string;
 }
 
 // Stripe event types
 interface StripeEvent {
     id: string;
     type: string;
+    created?: number;
     data: {
         object: StripeSubscription | StripeCheckoutSession;
     };
@@ -51,17 +54,20 @@ async function verifyWebhookSignature(
 
     const body = await request.text();
 
-    // Parse signature parts
-    const parts = signature.split(',').reduce((acc, part) => {
-        const [key, value] = part.split('=');
-        acc[key] = value;
-        return acc;
-    }, {} as Record<string, string>);
+    // Parse signature parts (Stripe may send multiple v1 values)
+    const timestamp = signature
+        .split(',')
+        .map(p => p.trim())
+        .find(p => p.startsWith('t='))
+        ?.slice(2);
 
-    const timestamp = parts['t'];
-    const expectedSig = parts['v1'];
+    const expectedSigs = signature
+        .split(',')
+        .map(p => p.trim())
+        .filter(p => p.startsWith('v1='))
+        .map(p => p.slice(3));
 
-    if (!timestamp || !expectedSig) return { valid: false };
+    if (!timestamp || expectedSigs.length === 0) return { valid: false };
 
     // Create signed payload
     const signedPayload = `${timestamp}.${body}`;
@@ -86,10 +92,17 @@ async function verifyWebhookSignature(
         .map(b => b.toString(16).padStart(2, '0'))
         .join('');
 
-    // Constant-time comparison
-    if (computedSig !== expectedSig) {
-        return { valid: false };
-    }
+    const constantTimeEqual = (a: string, b: string): boolean => {
+        if (a.length !== b.length) return false;
+        let diff = 0;
+        for (let i = 0; i < a.length; i++) {
+            diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+        }
+        return diff === 0;
+    };
+
+    const sigValid = expectedSigs.some(sig => constantTimeEqual(computedSig, sig));
+    if (!sigValid) return { valid: false };
 
     // Check timestamp (allow 5 minute tolerance)
     const timestampAge = Math.floor(Date.now() / 1000) - parseInt(timestamp);
@@ -101,12 +114,26 @@ async function verifyWebhookSignature(
 }
 
 function getPlanFromPriceId(priceId: string, env: Env): string {
-    // This would need to compare with env vars, but we can't access them here
-    // So we use a simple pattern match for now
-    if (priceId.includes('Lite') || priceId === (globalThis as any).STRIPE_LITE_PRICE_ID) {
-        return 'lite';
-    }
+    if (priceId === env.STRIPE_LITE_PRICE_ID) return 'lite';
+    if (priceId === env.STRIPE_PRO_PRICE_ID) return 'pro';
     return 'pro';
+}
+
+async function recordStripeEvent(env: Env, event: StripeEvent): Promise<boolean> {
+    try {
+        const res = await env.DB.prepare(`
+            INSERT INTO stripe_events (id, type, created, received_at)
+            VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+            ON CONFLICT(id) DO NOTHING
+        `).bind(event.id, event.type, event.created ?? null).run();
+
+        // If changes === 0, this event was already recorded
+        const changes = (res as unknown as { meta?: { changes?: number } }).meta?.changes ?? 0;
+        return changes > 0;
+    } catch (e) {
+        console.warn('Failed to record Stripe event (non-blocking):', e);
+        return true;
+    }
 }
 
 export const onRequestPost: PagesFunction<Env> = async (context) => {
@@ -124,6 +151,15 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
 
         const event = verification.payload;
         console.log(`Received Stripe event: ${event.type}`);
+
+        const isNewEvent = await recordStripeEvent(env, event);
+        if (!isNewEvent) {
+            console.log(`Duplicate Stripe event ignored: ${event.id}`);
+            return new Response(JSON.stringify({ received: true, duplicate: true }), {
+                status: 200,
+                headers: { 'Content-Type': 'application/json' },
+            });
+        }
 
         switch (event.type) {
             case 'checkout.session.completed': {

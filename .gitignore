@@ -40,6 +40,9 @@ Thumbs.db
 # Wrangler
 .wrangler/
 
+# Wrangler build artifacts
+_worker.bundle
+
 # Test files
 frontend/src/Test.tsx
 frontend/src/AppSimple.css
