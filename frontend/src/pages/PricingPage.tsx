@@ -48,6 +48,9 @@ export const PricingPage: React.FC = () => {
     const { isLoading: isAuthLoading, isAuthenticated, user, login, logout, openPortal } = useAuth();
     const [isCheckoutLoading, setIsCheckoutLoading] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
+    const [hasAgreedToSubscriptionTerms, setHasAgreedToSubscriptionTerms] = useState(false);
+
+    const CONSENT_VERSION = '2025-12-18';
 
     const currentPlan = user?.plan || 'free';
 
@@ -57,6 +60,11 @@ export const PricingPage: React.FC = () => {
         // If not logged in, redirect to login
         if (!isAuthenticated || !user) {
             login();
+            return;
+        }
+
+        if (!hasAgreedToSubscriptionTerms) {
+            setError('購入前に「自動更新・解約方法・返金ポリシー」の確認に同意してください。');
             return;
         }
 
@@ -71,6 +79,10 @@ export const PricingPage: React.FC = () => {
                     plan: planId,
                     userId: user.id,
                     userEmail: user.email,
+                    consent: {
+                        accepted: true,
+                        version: CONSENT_VERSION,
+                    },
                 }),
             });
 
@@ -96,6 +108,7 @@ export const PricingPage: React.FC = () => {
                     <Link to="/" className="nav-link">ブログ4コマ</Link>
                     <Link to="/movie" className="nav-link">動画4コマ</Link>
                     <Link to="/pricing" className="nav-link active">料金プラン</Link>
+                    <Link to="/howto" className="nav-link">使い方</Link>
                     <div className="nav-auth">
                         {isAuthenticated && user ? (
                             <div className="user-menu">
@@ -149,32 +162,61 @@ export const PricingPage: React.FC = () => {
                     {isAuthLoading ? (
                         <div className="pricing-loading">読み込み中...</div>
                     ) : (
-                        <div className="pricing-cards">
-                            {PLANS.map((plan) => (
-                                <PricingCard
-                                    key={plan.id}
-                                    name={plan.name}
-                                    price={plan.price}
-                                    period={plan.period}
-                                    features={plan.features}
-                                    isPopular={plan.isPopular}
-                                    isCurrentPlan={plan.id === currentPlan}
-                                    onSelect={() => handleSelectPlan(plan.id)}
-                                    disabled={isCheckoutLoading !== null || plan.id === 'free'}
-                                />
-                            ))}
-                        </div>
+                        <>
+                            <div className="pricing-precheckout">
+                                <h2>購入前の確認</h2>
+                                <p className="pricing-precheckout-note">
+                                    Lite/Pro はサブスクリプション（月額・自動更新）です。解約やプラン変更は Stripe のポータルから行えます。
+                                    返金は原則として受け付けていません（不正利用や重複課金などは個別に確認します）。
+                                </p>
+                                <label className="pricing-precheckout-consent">
+                                    <input
+                                        type="checkbox"
+                                        checked={hasAgreedToSubscriptionTerms}
+                                        onChange={(e) => setHasAgreedToSubscriptionTerms(e.target.checked)}
+                                    />
+                                    <span>
+                                        上記（自動更新・解約方法・返金ポリシー）を確認し、購入手続きを進めます（同意記録: v{CONSENT_VERSION}）。
+                                    </span>
+                                </label>
+                            </div>
+
+                            <div className="pricing-cards">
+                                {PLANS.map((plan) => (
+                                    <PricingCard
+                                        key={plan.id}
+                                        name={plan.name}
+                                        price={plan.price}
+                                        period={plan.period}
+                                        features={plan.features}
+                                        isPopular={plan.isPopular}
+                                        isCurrentPlan={plan.id === currentPlan}
+                                        onSelect={() => handleSelectPlan(plan.id)}
+                                        disabled={
+                                            isCheckoutLoading !== null
+                                            || plan.id === 'free'
+                                            || (
+                                                isAuthenticated
+                                                && plan.id !== 'free'
+                                                && plan.id !== currentPlan
+                                                && !hasAgreedToSubscriptionTerms
+                                            )
+                                        }
+                                    />
+                                ))}
+                            </div>
+                        </>
                     )}
 
                     <div className="pricing-faq">
                         <h2>よくある質問</h2>
                         <div className="faq-item">
                             <h3>いつでも解約できますか？</h3>
-                            <p>はい、いつでもキャンセル可能です。次の請求日まで利用できます。</p>
+                            <p>はい。Stripe のプラン管理ページ（ポータル）からいつでも解約できます。解約の反映タイミングはポータルに表示される内容（次回更新で停止/即時停止など）に従います。</p>
                         </div>
                         <div className="faq-item">
                             <h3>プランの変更はできますか？</h3>
-                            <p>はい、いつでもアップグレード・ダウングレードが可能です。</p>
+                            <p>はい。Stripe のポータルから変更できます。反映タイミング（即時/次回更新）や日割りの有無は Stripe 側の表示に従います。</p>
                         </div>
                         <div className="faq-item">
                             <h3>回数はどのようにカウントされますか？</h3>

@@ -20,3 +20,28 @@ CREATE TABLE IF NOT EXISTS usage (
 
 -- Index for faster usage queries
 CREATE INDEX IF NOT EXISTS idx_usage_user_month ON usage(user_id, created_at);
+
+-- Consent evidence for checkout (chargeback/dispute support)
+CREATE TABLE IF NOT EXISTS consents (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id TEXT NOT NULL,
+    kind TEXT NOT NULL,                     -- e.g. 'subscription_checkout'
+    version TEXT NOT NULL,                  -- app-defined consent version
+    accepted_at DATETIME NOT NULL,
+    ip TEXT,
+    user_agent TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_consents_user_kind_time ON consents(user_id, kind, accepted_at);
+
+-- Stripe webhook event idempotency / evidence
+CREATE TABLE IF NOT EXISTS stripe_events (
+    id TEXT PRIMARY KEY,                    -- Stripe event id
+    type TEXT NOT NULL,
+    created INTEGER,                        -- Stripe event.created (unix seconds)
+    received_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_stripe_events_type_received ON stripe_events(type, received_at);

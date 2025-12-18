@@ -57,9 +57,9 @@ export function useAuth(): UseAuthResult {
     }, [fetchAuth]);
 
     const login = useCallback(() => {
-        // Redirect to a protected path that triggers Cloudflare Access login
-        const returnUrl = encodeURIComponent(window.location.pathname + window.location.search);
-        window.location.href = `/pricing?return=${returnUrl}`;
+        // Navigate to a protected endpoint to trigger Cloudflare Access login, then return.
+        const returnPath = window.location.pathname + window.location.search;
+        window.location.href = `/api/auth/login?return=${encodeURIComponent(returnPath)}`;
     }, []);
 
     const logout = useCallback(() => {
