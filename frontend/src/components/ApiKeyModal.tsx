@@ -1,4 +1,6 @@
 import { useState, FormEvent } from 'react';
+import { useLanguage } from '../hooks/useLanguage';
+import { t } from '../i18n';
 
 interface ApiKeyModalProps {
     isOpen: boolean;
@@ -7,6 +9,7 @@ interface ApiKeyModalProps {
 }
 
 export function ApiKeyModal({ isOpen, onClose, onSubmit }: ApiKeyModalProps) {
+    const { language } = useLanguage();
     const [apiKey, setApiKey] = useState('');
 
     if (!isOpen) {
@@ -34,12 +37,12 @@ export function ApiKeyModal({ isOpen, onClose, onSubmit }: ApiKeyModalProps) {
                     type="button"
                     className="modal-close"
                     onClick={onClose}
-                    aria-label="閉じる"
+                    aria-label={t(language, 'apiKey.close')}
                 >
                     ×
                 </button>
 
-                <h3 className="modal-title">Gemini APIキーを入力</h3>
+                <h3 className="modal-title">{t(language, 'apiKey.title')}</h3>
 
                 <form onSubmit={handleSubmit}>
                     <div className="form-group">
@@ -54,16 +57,14 @@ export function ApiKeyModal({ isOpen, onClose, onSubmit }: ApiKeyModalProps) {
                         />
                     </div>
 
-                    <p className="api-key-notice">
-                        APIキーは保存しません（リクエスト時にのみ使用します）
-                    </p>
+                    <p className="api-key-notice">{t(language, 'apiKey.notice')}</p>
 
                     <button
                         type="submit"
                         className="submit-btn active"
                         disabled={!apiKey.trim()}
                     >
-                        生成を開始
+                        {t(language, 'apiKey.start')}
                     </button>
                 </form>
 
@@ -73,7 +74,7 @@ export function ApiKeyModal({ isOpen, onClose, onSubmit }: ApiKeyModalProps) {
                         target="_blank"
                         rel="noopener noreferrer"
                     >
-                        APIキーの取得方法 →
+                        {t(language, 'apiKey.howto')}
                     </a>
                 </div>
             </div>

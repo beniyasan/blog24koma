@@ -1,4 +1,6 @@
 import type { DemoStatus } from '../types';
+import { useLanguage } from '../hooks/useLanguage';
+import { t } from '../i18n';
 
 interface DemoLimitDisplayProps {
     status: DemoStatus | null;
@@ -6,6 +8,8 @@ interface DemoLimitDisplayProps {
 }
 
 export function DemoLimitDisplay({ status, onSwitchToByok }: DemoLimitDisplayProps) {
+    const { language } = useLanguage();
+
     if (!status) {
         return null;
     }
@@ -15,14 +19,14 @@ export function DemoLimitDisplay({ status, onSwitchToByok }: DemoLimitDisplayPro
             <div className="demo-limit-warning">
                 <span className="demo-limit-icon">⚠️</span>
                 <span className="demo-limit-text">
-                    {status.message || '本日のデモ回数に達しました。'}
+                    {status.message || t(language, 'demo.exceeded.default')}
                 </span>
                 <button
                     type="button"
                     className="demo-limit-link"
                     onClick={onSwitchToByok}
                 >
-                    BYOKで続ける →
+                    {t(language, 'demo.switchToByok')}
                 </button>
             </div>
         );
@@ -31,7 +35,7 @@ export function DemoLimitDisplay({ status, onSwitchToByok }: DemoLimitDisplayPro
     return (
         <div className="demo-limit-info">
             <span className="demo-limit-text">
-                本日のデモ残り：<strong>{status.remainingCount}回</strong>
+                {t(language, 'demo.remaining')}<strong>{status.remainingCount}{t(language, 'demo.remaining.suffix')}</strong>
             </span>
         </div>
     );

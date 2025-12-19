@@ -1,3 +1,5 @@
+import { useLanguage } from '../hooks/useLanguage';
+import { t } from '../i18n';
 
 interface ErrorDisplayProps {
     message: string;
@@ -5,12 +7,13 @@ interface ErrorDisplayProps {
 }
 
 export function ErrorDisplay({ message, onRetry }: ErrorDisplayProps) {
+    const { language } = useLanguage();
     return (
         <div className="error-box fade-in">
-            <div className="error-title">エラーが発生しました</div>
+            <div className="error-title">{t(language, 'error.title')}</div>
             <p style={{ marginBottom: 'var(--spacing-md)' }}>{message}</p>
             <button className="btn btn-secondary" onClick={onRetry}>
-                もう一度試す
+                {t(language, 'error.retry')}
             </button>
         </div>
     );

@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import { STORYBOARD_MODELS, IMAGE_MODELS } from '../types';
+import { useLanguage } from '../hooks/useLanguage';
+import { t } from '../i18n';
 
 interface ModelSettingsModalProps {
   isOpen: boolean;
@@ -18,6 +20,8 @@ export function ModelSettingsModal({
   onChange,
   onReset,
 }: ModelSettingsModalProps) {
+  const { language } = useLanguage();
+
   // モーダル内のローカル状態を管理
   const [localStoryboardModel, setLocalStoryboardModel] = useState(storyboardModel);
   const [localImageModel, setLocalImageModel] = useState(imageModel);
@@ -64,7 +68,7 @@ export function ModelSettingsModal({
     <div className="modal-overlay" onClick={handleOverlayClick}>
       <div className="modal-content">
         <div className="modal-header">
-          <h2 className="modal-title">モデル設定</h2>
+          <h2 className="modal-title">{t(language, 'modelSettings.title')}</h2>
           <button className="modal-close" onClick={onClose}>
             ×
           </button>
@@ -74,7 +78,7 @@ export function ModelSettingsModal({
           <div className="model-section">
             <h3 className="model-section-title">
               <span className="model-section-icon">📝</span>
-              絵コンテ生成モデル
+              {t(language, 'modelSettings.storyboard')}
             </h3>
             <div className="model-select-wrapper">
               <select
@@ -98,7 +102,7 @@ export function ModelSettingsModal({
           <div className="model-section">
             <h3 className="model-section-title">
               <span className="model-section-icon">🎨</span>
-              画像生成モデル
+              {t(language, 'modelSettings.image')}
             </h3>
             <div className="model-select-wrapper">
               <select
@@ -122,10 +126,10 @@ export function ModelSettingsModal({
 
         <div className="model-footer">
           <button className="model-btn secondary" onClick={handleReset}>
-            デフォルトに戻す
+            {t(language, 'modelSettings.reset')}
           </button>
           <button className="model-btn primary" onClick={onClose}>
-            完了
+            {t(language, 'modelSettings.done')}
           </button>
         </div>
       </div>

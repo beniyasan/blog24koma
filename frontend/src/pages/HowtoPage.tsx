@@ -1,6 +1,9 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
+import { NavBar } from '../components/NavBar';
+import { useLanguage } from '../hooks/useLanguage';
+import { t } from '../i18n';
 import './HowtoPage.css';
 
 type HowtoStepProps = {
@@ -25,49 +28,15 @@ const HowtoStep: React.FC<HowtoStepProps> = ({ title, description, imageSrc, ima
 };
 
 export const HowtoPage: React.FC = () => {
-    const { isLoading: isAuthLoading, isAuthenticated, user, login, logout, openPortal } = useAuth();
+    const { isLoading: isAuthLoading, isAuthenticated, user } = useAuth();
+    const { language } = useLanguage();
 
     return (
         <div className="app">
             <header className="header">
-                <nav className="nav-links">
-                    <Link to="/" className="nav-link">ブログ4コマ</Link>
-                    <Link to="/movie" className="nav-link">動画4コマ</Link>
-                    <Link to="/pricing" className="nav-link">料金プラン</Link>
-                    <Link to="/howto" className="nav-link active">使い方</Link>
-                    <div className="nav-auth">
-                        {isAuthenticated && user ? (
-                            <div className="user-menu">
-                                <button className="user-menu-trigger">
-                                    <span className="user-plan">{user.plan.toUpperCase()}</span>
-                                    <span>▼</span>
-                                </button>
-                                <div className="user-menu-dropdown">
-                                    <div className="user-menu-item" style={{ cursor: 'default', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                                        {user.email}
-                                    </div>
-                                    <div className="user-menu-divider" />
-                                    {user.hasStripeCustomer && (
-                                        <button onClick={openPortal} className="user-menu-item primary">
-                                            プラン管理
-                                        </button>
-                                    )}
-                                    <Link to="/pricing" className="user-menu-item">
-                                        料金プラン
-                                    </Link>
-                                    <div className="user-menu-divider" />
-                                    <button onClick={logout} className="user-menu-item danger">
-                                        ログアウト
-                                    </button>
-                                </div>
-                            </div>
-                        ) : (
-                            <button onClick={login} className="auth-button primary">ログイン</button>
-                        )}
-                    </div>
-                </nav>
+                <NavBar active="/howto" />
                 <div className="hero-content">
-                    <h1 className="header-title">使い方</h1>
+                    <h1 className="header-title">{t(language, 'nav.howto')}</h1>
                     <p className="header-subtitle">
                         URLを貼るだけで、ブログ記事や動画を4コマ漫画に変換できます
                     </p>

@@ -47,4 +47,7 @@ _worker.bundle
 frontend/src/Test.tsx
 frontend/src/AppSimple.css
 
+# Test build outputs
+tests/.dist/
+
 .dev.vars

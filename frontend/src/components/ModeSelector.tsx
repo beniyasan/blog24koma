@@ -1,4 +1,6 @@
 import type { GenerationMode } from '../types';
+import { useLanguage } from '../hooks/useLanguage';
+import { t } from '../i18n';
 
 interface ModeSelectorProps {
     mode: GenerationMode;
@@ -8,25 +10,11 @@ interface ModeSelectorProps {
     isAuthenticated?: boolean;
 }
 
-const MODE_INFO: Record<GenerationMode, { label: string; description: string; requiresPlan?: string }> = {
-    demo: {
-        label: 'Demo',
-        description: 'キー不要（回数制限あり・透かしあり）',
-    },
-    lite: {
-        label: 'Lite',
-        description: '月30回まで（透かしなし）',
-        requiresPlan: 'lite',
-    },
-    pro: {
-        label: 'Pro',
-        description: '月100回まで（透かしなし・優先）',
-        requiresPlan: 'pro',
-    },
-    byok: {
-        label: 'BYOK',
-        description: 'あなたのAPIキーで実行（キーは保存しません）',
-    },
+const MODE_LABEL: Record<GenerationMode, string> = {
+    demo: 'Demo',
+    lite: 'Lite',
+    pro: 'Pro',
+    byok: 'BYOK',
 };
 
 export function ModeSelector({
@@ -36,6 +24,8 @@ export function ModeSelector({
     userPlan,
     isAuthenticated,
 }: ModeSelectorProps) {
+    const { language } = useLanguage();
+
     // Determine which modes to show
     const availableModes: GenerationMode[] = ['demo'];
 
@@ -63,11 +53,11 @@ export function ModeSelector({
                         onClick={() => onModeChange(m)}
                         disabled={disabled}
                     >
-                        {MODE_INFO[m].label}
+                        {MODE_LABEL[m]}
                     </button>
                 ))}
             </div>
-            <p className="mode-description">{MODE_INFO[mode].description}</p>
+            <p className="mode-description">{t(language, `mode.${mode}.description`)}</p>
         </div>
     );
 }

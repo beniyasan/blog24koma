@@ -4,6 +4,8 @@ import { ModeSelector } from './ModeSelector';
 import { DemoLimitDisplay } from './DemoLimitDisplay';
 import { ApiKeyModal } from './ApiKeyModal';
 import { analytics, EVENTS } from '../utils/analytics';
+import { useLanguage } from '../hooks/useLanguage';
+import { t } from '../i18n';
 import type { Generate4KomaRequest, ModelSettings, GenerationMode, DemoStatus } from '../types';
 
 interface InputFormProps {
@@ -29,6 +31,7 @@ export function InputForm({
     userPlan,
     isAuthenticated,
 }: InputFormProps) {
+    const { language } = useLanguage();
     const [articleUrl, setArticleUrl] = useState('');
     const [userPrompt, setUserPrompt] = useState('');
     const [isModelModalOpen, setIsModelModalOpen] = useState(false);
@@ -63,6 +66,7 @@ export function InputForm({
             userPrompt: userPrompt.trim() || undefined,
             geminiApiKey: apiKey,
             modelSettings,
+            language,
             mode: 'byok',
         };
 
@@ -75,6 +79,7 @@ export function InputForm({
             userPrompt: userPrompt.trim() || undefined,
             geminiApiKey: apiKey,
             modelSettings,
+            language,
             mode,
         };
 
@@ -100,8 +105,8 @@ export function InputForm({
         <div className="form-container">
             <div className="form-card">
                 <div className="form-header">
-                    <h2 className="form-title">4コマ漫画を生成</h2>
-                    <p className="form-subtitle">ブログ記事を面白い4コマ漫画に変換します</p>
+                    <h2 className="form-title">{t(language, 'form.blog.title')}</h2>
+                    <p className="form-subtitle">{t(language, 'form.blog.subtitle')}</p>
                 </div>
 
                 <ModeSelector
@@ -122,7 +127,7 @@ export function InputForm({
                 <form onSubmit={handleSubmit} className="form">
                     <div className="form-group">
                         <label htmlFor="articleUrl" className="form-label">
-                            記事URL <span className="required">*</span>
+                            {t(language, 'form.articleUrl')} <span className="required">*</span>
                         </label>
                         <div className="input-wrapper">
                             <input
@@ -140,7 +145,8 @@ export function InputForm({
 
                     <div className="form-group">
                         <label htmlFor="userPrompt" className="form-label">
-                            補足指示<span className="optional">（任意）</span>
+                            {t(language, 'form.userPrompt')}
+                            <span className="optional">{t(language, 'form.optional')}</span>
                         </label>
                         <div className="input-wrapper">
                             <textarea
@@ -163,10 +169,10 @@ export function InputForm({
                                     className="model-settings-btn"
                                     onClick={() => setIsModelModalOpen(true)}
                                     disabled={loading}
-                                    title="モデル設定"
+                                    title={t(language, 'form.modelSettings')}
                                 >
                                     <span className="model-settings-icon">⚙️</span>
-                                    <span>モデル設定</span>
+                                    <span>{t(language, 'form.modelSettings')}</span>
                                 </button>
                             </div>
                             {modelSettings && (
@@ -185,10 +191,10 @@ export function InputForm({
                         {loading ? (
                             <>
                                 <div className="loading-spinner"></div>
-                                <span>生成中...</span>
+                                <span>{t(language, 'form.generating')}</span>
                             </>
                         ) : (
-                            <span>4コマを生成する</span>
+                            <span>{t(language, 'form.generate')}</span>
                         )}
                     </button>
 

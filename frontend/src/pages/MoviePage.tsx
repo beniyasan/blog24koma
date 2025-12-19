@@ -1,13 +1,15 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
 import { MovieInputForm } from '../components/movie/MovieInputForm';
 import { MovieResultDisplay } from '../components/movie/MovieResultDisplay';
 import { LoadingSpinner } from '../components/LoadingSpinner';
 import { ErrorDisplay } from '../components/ErrorDisplay';
+import { NavBar } from '../components/NavBar';
 import { useGenerateMovie4Koma } from '../hooks/useGenerateMovie4Koma';
 import { useModelSettings } from '../hooks/useModelSettings';
 import { useMovieDemoStatus } from '../hooks/useMovieDemoStatus';
 import { useAuth } from '../hooks/useAuth';
+import { useLanguage } from '../hooks/useLanguage';
+import { t } from '../i18n';
 import type { GenerateMovie4KomaRequest, GenerationMode } from '../types';
 
 export function MoviePage() {
@@ -15,7 +17,8 @@ export function MoviePage() {
     const { result, loading, error, generate, reset } = useGenerateMovie4Koma();
     const { settings: modelSettings, ...modelSettingsActions } = useModelSettings();
     const { status: demoStatus, refresh: refreshDemoStatus } = useMovieDemoStatus();
-    const { isAuthenticated, user, login, logout, openPortal } = useAuth();
+    const { isAuthenticated, user } = useAuth();
+    const { language } = useLanguage();
 
     const handleGenerate = (data: GenerateMovie4KomaRequest) => {
         generate(data);
@@ -31,50 +34,11 @@ export function MoviePage() {
     return (
         <div className="app">
             <header className="header movie-header">
-                <nav className="nav-links">
-                    <Link to="/" className="nav-link">ブログ4コマ</Link>
-                    <Link to="/movie" className="nav-link active">動画4コマ</Link>
-                    <Link to="/pricing" className="nav-link">料金プラン</Link>
-                    <Link to="/howto" className="nav-link">使い方</Link>
-                    <div className="nav-auth">
-                        {isAuthenticated && user ? (
-                            <div className="user-menu">
-                                <button className="user-menu-trigger">
-                                    <span className="user-plan">{user.plan.toUpperCase()}</span>
-                                    <span>▼</span>
-                                </button>
-                                <div className="user-menu-dropdown">
-                                    <div className="user-menu-item" style={{ cursor: 'default', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                                        {user.email}
-                                    </div>
-                                    <div className="user-menu-divider" />
-                                    {user.hasStripeCustomer && (
-                                        <button onClick={openPortal} className="user-menu-item primary">
-                                            プラン管理
-                                        </button>
-                                    )}
-                                    <Link to="/pricing" className="user-menu-item">
-                                        料金プラン
-                                    </Link>
-                                    <div className="user-menu-divider" />
-                                    <button onClick={logout} className="user-menu-item danger">
-                                        ログアウト
-                                    </button>
-                                </div>
-                            </div>
-                        ) : (
-                            <button onClick={login} className="auth-button primary">ログイン</button>
-                        )}
-                    </div>
-                </nav>
+                <NavBar active="/movie" />
                 <div className="hero-content">
-                    <h1 className="header-title">動画4コマメーカー</h1>
-                    <p className="header-subtitle">
-                        YouTube動画URLを貼るだけで、動画内容を4コマ漫画に自動変換
-                    </p>
-                    <p className="header-note">
-                        ※YouTubeの動画に対応しております
-                    </p>
+                    <h1 className="header-title">{t(language, 'movie.hero.title')}</h1>
+                    <p className="header-subtitle">{t(language, 'movie.hero.subtitle')}</p>
+                    <p className="header-note">{t(language, 'movie.hero.note')}</p>
                 </div>
             </header>
 
@@ -101,7 +65,7 @@ export function MoviePage() {
                     />
                 )}
 
-                {loading && <LoadingSpinner message="動画を解析して4コマ漫画を生成中..." />}
+                {loading && <LoadingSpinner message={t(language, 'movie.loading')} />}
 
                 {error && !loading && (
                     <ErrorDisplay message={error} onRetry={handleReset} />
