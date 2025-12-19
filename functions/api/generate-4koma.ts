@@ -8,6 +8,7 @@ import type {
 } from '../../frontend/src/types';
 import { getCorsHeaders, corsPreflightResponse } from './_cors';
 import { getUserUsage, recordUsage, getUserFromJwt } from './_usage';
+import { normalizeLanguage, getStoryboardSystemPrompt, getImagePrompt } from './prompts';
 
 // ===== Env Interface =====
 interface Env {
@@ -81,7 +82,7 @@ function validateRequest(body: unknown): Generate4KomaRequest {
         throw new ValidationError('Request body must be a JSON object');
     }
 
-    const { articleUrl, userPrompt, geminiApiKey, modelSettings, mode } = body as Record<string, unknown>;
+    const { articleUrl, userPrompt, geminiApiKey, modelSettings, mode, language } = body as Record<string, unknown>;
 
     if (typeof articleUrl !== 'string' || !articleUrl.trim()) {
         throw new ValidationError('articleUrl is required');
@@ -103,6 +104,10 @@ function validateRequest(body: unknown): Generate4KomaRequest {
 
     if (userPrompt !== undefined && typeof userPrompt !== 'string') {
         throw new ValidationError('userPrompt must be a string');
+    }
+
+    if (language !== undefined && typeof language !== 'string') {
+        throw new ValidationError('language must be a string');
     }
 
     if (modelSettings !== undefined) {
@@ -148,7 +153,8 @@ function validateRequest(body: unknown): Generate4KomaRequest {
             storyboardModel: DEFAULT_STORYBOARD_MODEL,
             imageModel: DEFAULT_IMAGE_MODEL,
         },
-        mode: requestMode as 'demo' | 'byok',
+        language: normalizeLanguage(language),
+        mode: requestMode as Generate4KomaRequest['mode'],
     };
 }
 
@@ -339,27 +345,20 @@ async function generateStoryboard(
     apiKey: string,
     article: ArticleContent,
     userPrompt: string,
-    model: string
+    model: string,
+    language: string
 ): Promise<StoryboardPanel[]> {
-    const systemPrompt = `あなたは4コマ漫画の脚本家です。与えられた記事の内容を4コマ漫画の絵コンテに変換してください。
+    const lang = normalizeLanguage(language);
+    const systemPrompt = getStoryboardSystemPrompt(lang);
 
-制約:
-- 必ず4つのパネル（起承転結）で構成する
-- 各パネルには description（シーンの説明）と dialogue（セリフ）を含める
-- description は視覚的に描画可能な具体的な場面を記述する（50-100文字）
-- dialogue は短く印象的なセリフにする（30文字以内）
-- 記事の核心的なメッセージを4コマで伝える
+    const userContent = lang === 'en'
+        ? `Article title: ${article.title}
 
-出力形式:
-必ず以下のJSON形式のみを出力してください。他の説明は不要です。
-[
-  {"panel": 1, "description": "...", "dialogue": "..."},
-  {"panel": 2, "description": "...", "dialogue": "..."},
-  {"panel": 3, "description": "...", "dialogue": "..."},
-  {"panel": 4, "description": "...", "dialogue": "..."}
-]`;
+Article:
+${article.body}
 
-    const userContent = `記事タイトル: ${article.title}
+${userPrompt ? `Additional instructions:\n${userPrompt}` : ''}`
+        : `記事タイトル: ${article.title}
 
 記事本文:
 ${article.body}
@@ -436,32 +435,14 @@ function parseStoryboardJson(text: string): StoryboardPanel[] {
 }
 
 // ===== Nano Banana Pro: Image Generation =====
-async function generate4KomaImage(apiKey: string, storyboard: StoryboardPanel[], model: string): Promise<string> {
-    // Build a detailed prompt for all 4 panels with dialogues
-    const panelDescriptions = storyboard.map((panel) =>
-        `【コマ${panel.panel}】\nシーン: ${panel.description}\nセリフ: 「${panel.dialogue}」`
-    ).join('\n\n');
-
-    const prompt = `日本の4コマ漫画を1枚の画像として生成してください。
-
-【レイアウト】
-- 縦に4コマ並べた構成（上から下へ1→2→3→4の順）
-- 各コマは同じサイズで、明確な枠線で区切る
-- アスペクト比は縦長（1:2程度）
-
-【スタイル】
-- シンプルでかわいい日本の4コマ漫画風
-- 明るく親しみやすいトーン
-- キャラクターはデフォルメされたかわいいスタイル
-- 背景はシンプルに
-
-【重要】
-- 各コマ内にセリフを吹き出しで表示すること
-- セリフは日本語で、読みやすいフォントで描くこと
-- 起承転結の流れを意識した構成
-
-【各コマの内容】
-${panelDescriptions}`;
+async function generate4KomaImage(
+    apiKey: string,
+    storyboard: StoryboardPanel[],
+    model: string,
+    language: string
+): Promise<string> {
+    const lang = normalizeLanguage(language);
+    const prompt = getImagePrompt(lang, storyboard);
 
     const response = await fetch(
         `${GEMINI_API_BASE}/models/${model}:generateContent`,
@@ -636,14 +617,16 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
             apiKey,
             article,
             body.userPrompt || '',
-            body.modelSettings?.storyboardModel || DEFAULT_STORYBOARD_MODEL
+            body.modelSettings?.storyboardModel || DEFAULT_STORYBOARD_MODEL,
+            body.language || 'ja'
         );
 
         // 6. Generate 4-koma image with selected image model
         let imageBase64 = await generate4KomaImage(
             apiKey,
             storyboard,
-            body.modelSettings?.imageModel || DEFAULT_IMAGE_MODEL
+            body.modelSettings?.imageModel || DEFAULT_IMAGE_MODEL,
+            body.language || 'ja'
         );
 
         // 7. Add watermark for demo mode

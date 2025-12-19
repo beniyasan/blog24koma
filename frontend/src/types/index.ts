@@ -2,6 +2,8 @@
 
 export type GenerationMode = 'demo' | 'lite' | 'pro' | 'byok';
 
+export type Language = 'ja' | 'en';
+
 export interface DemoStatus {
   remainingCount: number;
   maxCount: number;
@@ -14,6 +16,7 @@ export interface Generate4KomaRequest {
   userPrompt?: string;
   geminiApiKey?: string;  // Optional for Demo mode
   modelSettings?: ModelSettings;
+  language?: Language;
   mode: GenerationMode;   // Required
 }
 
@@ -22,6 +25,7 @@ export interface GenerateMovie4KomaRequest {
   userPrompt?: string;
   geminiApiKey?: string;  // Optional for Demo mode
   modelSettings?: ModelSettings;
+  language?: Language;
   mode: GenerationMode;   // Required
 }
 

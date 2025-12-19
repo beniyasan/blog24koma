@@ -1,9 +1,13 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { NavBar } from '../components/NavBar';
+import { useLanguage } from '../hooks/useLanguage';
+import { t } from '../i18n';
 import './SubscriptionSuccessPage.css';
 
 export function SubscriptionSuccessPage() {
     const [countdown, setCountdown] = useState(5);
+    const { language } = useLanguage();
 
     useEffect(() => {
         // Auto redirect to home after countdown
@@ -24,12 +28,7 @@ export function SubscriptionSuccessPage() {
     return (
         <div className="app">
             <header className="header">
-                <nav className="nav-links">
-                    <Link to="/" className="nav-link">ブログ4コマ</Link>
-                    <Link to="/movie" className="nav-link">動画4コマ</Link>
-                    <Link to="/pricing" className="nav-link">料金プラン</Link>
-                    <Link to="/howto" className="nav-link">使い方</Link>
-                </nav>
+                <NavBar />
                 <div className="hero-content">
                     <h1 className="header-title">サブスクリプション完了！</h1>
                     <p className="header-subtitle">
@@ -47,7 +46,7 @@ export function SubscriptionSuccessPage() {
 
                         <div className="success-actions">
                             <Link to="/" className="success-button primary">
-                                4コマを生成する
+                                {t(language, 'form.generate')}
                             </Link>
                             <Link to="/pricing" className="success-button secondary">
                                 プランを確認する

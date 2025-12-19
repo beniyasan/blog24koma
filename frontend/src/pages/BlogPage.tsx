@@ -1,13 +1,15 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
 import { InputForm } from '../components/InputForm';
 import { ResultDisplay } from '../components/ResultDisplay';
 import { LoadingSpinner } from '../components/LoadingSpinner';
 import { ErrorDisplay } from '../components/ErrorDisplay';
+import { NavBar } from '../components/NavBar';
 import { useGenerate4Koma } from '../hooks/useGenerate4Koma';
 import { useModelSettings } from '../hooks/useModelSettings';
 import { useDemoStatus } from '../hooks/useDemoStatus';
 import { useAuth } from '../hooks/useAuth';
+import { useLanguage } from '../hooks/useLanguage';
+import { t } from '../i18n';
 import type { Generate4KomaRequest, GenerationMode } from '../types';
 
 export function BlogPage() {
@@ -15,7 +17,8 @@ export function BlogPage() {
     const { result, loading, error, generate, reset } = useGenerate4Koma();
     const { settings: modelSettings, ...modelSettingsActions } = useModelSettings();
     const { status: demoStatus, refresh: refreshDemoStatus } = useDemoStatus();
-    const { isAuthenticated, user, login, logout, openPortal } = useAuth();
+    const { isAuthenticated, user } = useAuth();
+    const { language } = useLanguage();
 
     const handleGenerate = (data: Generate4KomaRequest) => {
         generate(data);
@@ -31,50 +34,11 @@ export function BlogPage() {
     return (
         <div className="app">
             <header className="header">
-                <nav className="nav-links">
-                    <Link to="/" className="nav-link active">ブログ4コマ</Link>
-                    <Link to="/movie" className="nav-link">動画4コマ</Link>
-                    <Link to="/pricing" className="nav-link">料金プラン</Link>
-                    <Link to="/howto" className="nav-link">使い方</Link>
-                    <div className="nav-auth">
-                        {isAuthenticated && user ? (
-                            <div className="user-menu">
-                                <button className="user-menu-trigger">
-                                    <span className="user-plan">{user.plan.toUpperCase()}</span>
-                                    <span>▼</span>
-                                </button>
-                                <div className="user-menu-dropdown">
-                                    <div className="user-menu-item" style={{ cursor: 'default', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                                        {user.email}
-                                    </div>
-                                    <div className="user-menu-divider" />
-                                    {user.hasStripeCustomer && (
-                                        <button onClick={openPortal} className="user-menu-item primary">
-                                            プラン管理
-                                        </button>
-                                    )}
-                                    <Link to="/pricing" className="user-menu-item">
-                                        料金プラン
-                                    </Link>
-                                    <div className="user-menu-divider" />
-                                    <button onClick={logout} className="user-menu-item danger">
-                                        ログアウト
-                                    </button>
-                                </div>
-                            </div>
-                        ) : (
-                            <button onClick={login} className="auth-button primary">ログイン</button>
-                        )}
-                    </div>
-                </nav>
+                <NavBar active="/" />
                 <div className="hero-content">
-                    <h1 className="header-title">ブログ4コマメーカー</h1>
-                    <p className="header-subtitle">
-                        記事URLを貼るだけで、ブログ記事を4コマ漫画に自動変換
-                    </p>
-                    <p className="header-note">
-                        ※現在はNote,Qiita,Zennに対応しております
-                    </p>
+                    <h1 className="header-title">{t(language, 'blog.hero.title')}</h1>
+                    <p className="header-subtitle">{t(language, 'blog.hero.subtitle')}</p>
+                    <p className="header-note">{t(language, 'blog.hero.note')}</p>
                 </div>
             </header>
 
@@ -101,7 +65,7 @@ export function BlogPage() {
                     />
                 )}
 
-                {loading && <LoadingSpinner message="4コマ漫画を生成中..." />}
+                {loading && <LoadingSpinner message={t(language, 'blog.loading')} />}
 
                 {error && !loading && (
                     <ErrorDisplay message={error} onRetry={handleReset} />

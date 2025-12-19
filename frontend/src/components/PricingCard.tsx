@@ -1,4 +1,6 @@
 import React from 'react';
+import { useLanguage } from '../hooks/useLanguage';
+import { t } from '../i18n';
 import './PricingCard.css';
 
 interface PricingCardProps {
@@ -22,10 +24,12 @@ export const PricingCard: React.FC<PricingCardProps> = ({
     onSelect,
     disabled = false,
 }) => {
+    const { language } = useLanguage();
+
     return (
         <div className={`pricing-card ${isPopular ? 'popular' : ''} ${isCurrentPlan ? 'current' : ''}`}>
-            {isPopular && <div className="popular-badge">おすすめ</div>}
-            {isCurrentPlan && <div className="current-badge">現在のプラン</div>}
+            {isPopular && <div className="popular-badge">{t(language, 'pricing.card.popularBadge')}</div>}
+            {isCurrentPlan && <div className="current-badge">{t(language, 'pricing.card.currentBadge')}</div>}
 
             <h3 className="pricing-name">{name}</h3>
 
@@ -48,7 +52,7 @@ export const PricingCard: React.FC<PricingCardProps> = ({
                 onClick={onSelect}
                 disabled={disabled || isCurrentPlan}
             >
-                {isCurrentPlan ? '現在のプラン' : '選択する'}
+                {isCurrentPlan ? t(language, 'pricing.card.button.current') : t(language, 'pricing.card.button.select')}
             </button>
         </div>
     );

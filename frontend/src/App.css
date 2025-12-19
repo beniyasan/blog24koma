@@ -549,6 +549,14 @@
     box-shadow: 2px 2px 0 var(--border);
 }
 
+.language-select {
+    appearance: none;
+}
+
+.language-select option {
+    color: var(--text-primary);
+}
+
 /* User menu dropdown */
 .user-menu {
     position: relative;

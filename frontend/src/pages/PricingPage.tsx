@@ -1,51 +1,56 @@
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
 import { PricingCard } from '../components/PricingCard';
+import { NavBar } from '../components/NavBar';
 import { useAuth } from '../hooks/useAuth';
+import { useLanguage } from '../hooks/useLanguage';
+import { t, type Language } from '../i18n';
 import './PricingPage.css';
 
-const PLANS = [
-    {
-        id: 'free',
-        name: 'Free',
-        price: 0,
-        period: '無料',
-        features: [
-            'ブログ4コマ: 5回/日',
-            '動画4コマ: 3回/日',
-            'デモ透かし付き',
-        ],
-    },
-    {
-        id: 'lite',
-        name: 'Lite',
-        price: 480,
-        period: '月',
-        features: [
-            '月30回まで生成',
-            'ブログ・動画共通',
-            '透かしなし',
-            'メールサポート',
-        ],
-    },
-    {
-        id: 'pro',
-        name: 'Pro',
-        price: 980,
-        period: '月',
-        features: [
-            '月100回まで生成',
-            'ブログ・動画共通',
-            '透かしなし',
-            '優先サポート',
-            '新機能早期アクセス',
-        ],
-        isPopular: true,
-    },
-];
+function getPlans(language: Language) {
+    return [
+        {
+            id: 'free',
+            name: 'Free',
+            price: 0,
+            period: t(language, 'pricing.period.free'),
+            features: [
+                t(language, 'pricing.plan.free.feature.blog'),
+                t(language, 'pricing.plan.free.feature.movie'),
+                t(language, 'pricing.plan.free.feature.watermark'),
+            ],
+        },
+        {
+            id: 'lite',
+            name: 'Lite',
+            price: 480,
+            period: t(language, 'pricing.period.month'),
+            features: [
+                t(language, 'pricing.plan.lite.feature.limit'),
+                t(language, 'pricing.plan.lite.feature.common'),
+                t(language, 'pricing.plan.lite.feature.nowatermark'),
+                t(language, 'pricing.plan.lite.feature.support'),
+            ],
+        },
+        {
+            id: 'pro',
+            name: 'Pro',
+            price: 980,
+            period: t(language, 'pricing.period.month'),
+            features: [
+                t(language, 'pricing.plan.pro.feature.limit'),
+                t(language, 'pricing.plan.pro.feature.common'),
+                t(language, 'pricing.plan.pro.feature.nowatermark'),
+                t(language, 'pricing.plan.pro.feature.priority'),
+                t(language, 'pricing.plan.pro.feature.early'),
+            ],
+            isPopular: true,
+        },
+    ];
+}
 
 export const PricingPage: React.FC = () => {
-    const { isLoading: isAuthLoading, isAuthenticated, user, login, logout, openPortal } = useAuth();
+    const { isLoading: isAuthLoading, isAuthenticated, user, login } = useAuth();
+    const { language } = useLanguage();
     const [isCheckoutLoading, setIsCheckoutLoading] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [hasAgreedToSubscriptionTerms, setHasAgreedToSubscriptionTerms] = useState(false);
@@ -53,6 +58,7 @@ export const PricingPage: React.FC = () => {
     const CONSENT_VERSION = '2025-12-18';
 
     const currentPlan = user?.plan || 'free';
+    const plans = getPlans(language);
 
     const handleSelectPlan = async (planId: string) => {
         if (planId === 'free' || planId === currentPlan) return;
@@ -64,7 +70,7 @@ export const PricingPage: React.FC = () => {
         }
 
         if (!hasAgreedToSubscriptionTerms) {
-            setError('購入前に「自動更新・解約方法・返金ポリシー」の確認に同意してください。');
+            setError(t(language, 'pricing.error.consentRequired'));
             return;
         }
 
@@ -89,13 +95,13 @@ export const PricingPage: React.FC = () => {
             const data = await response.json();
 
             if (!response.ok) {
-                throw new Error(data.error || 'チェックアウトに失敗しました');
+                throw new Error(data.error || t(language, 'pricing.error.checkoutFailed'));
             }
 
             // Redirect to Stripe Checkout
             window.location.href = data.url;
         } catch (err) {
-            setError(err instanceof Error ? err.message : 'エラーが発生しました');
+            setError(err instanceof Error ? err.message : t(language, 'pricing.error.generic'));
         } finally {
             setIsCheckoutLoading(null);
         }
@@ -104,44 +110,10 @@ export const PricingPage: React.FC = () => {
     return (
         <div className="app">
             <header className="header">
-                <nav className="nav-links">
-                    <Link to="/" className="nav-link">ブログ4コマ</Link>
-                    <Link to="/movie" className="nav-link">動画4コマ</Link>
-                    <Link to="/pricing" className="nav-link active">料金プラン</Link>
-                    <Link to="/howto" className="nav-link">使い方</Link>
-                    <div className="nav-auth">
-                        {isAuthenticated && user ? (
-                            <div className="user-menu">
-                                <button className="user-menu-trigger">
-                                    <span className="user-plan">{user.plan.toUpperCase()}</span>
-                                    <span>▼</span>
-                                </button>
-                                <div className="user-menu-dropdown">
-                                    <div className="user-menu-item" style={{ cursor: 'default', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                                        {user.email}
-                                    </div>
-                                    <div className="user-menu-divider" />
-                                    {user.hasStripeCustomer && (
-                                        <button onClick={openPortal} className="user-menu-item primary">
-                                            プラン管理
-                                        </button>
-                                    )}
-                                    <div className="user-menu-divider" />
-                                    <button onClick={logout} className="user-menu-item danger">
-                                        ログアウト
-                                    </button>
-                                </div>
-                            </div>
-                        ) : (
-                            <button onClick={login} className="auth-button primary">ログイン</button>
-                        )}
-                    </div>
-                </nav>
+                <NavBar active="/pricing" />
                 <div className="hero-content">
-                    <h1 className="header-title">料金プラン</h1>
-                    <p className="header-subtitle">
-                        あなたのニーズに合ったプランを選んでください
-                    </p>
+                    <h1 className="header-title">{t(language, 'nav.pricing')}</h1>
+                    <p className="header-subtitle">{t(language, 'pricing.subtitle')}</p>
                     {isAuthenticated && user && (
                         <p className="header-note">
                             ログイン中: {user.email} ({user.plan.toUpperCase()})
@@ -160,15 +132,12 @@ export const PricingPage: React.FC = () => {
                     )}
 
                     {isAuthLoading ? (
-                        <div className="pricing-loading">読み込み中...</div>
+                        <div className="pricing-loading">{t(language, 'pricing.loading')}</div>
                     ) : (
                         <>
                             <div className="pricing-precheckout">
-                                <h2>購入前の確認</h2>
-                                <p className="pricing-precheckout-note">
-                                    Lite/Pro はサブスクリプション（月額・自動更新）です。解約やプラン変更は Stripe のポータルから行えます。
-                                    返金は原則として受け付けていません（不正利用や重複課金などは個別に確認します）。
-                                </p>
+                                <h2>{t(language, 'pricing.precheckout.title')}</h2>
+                                <p className="pricing-precheckout-note">{t(language, 'pricing.precheckout.note')}</p>
                                 <label className="pricing-precheckout-consent">
                                     <input
                                         type="checkbox"
@@ -176,13 +145,13 @@ export const PricingPage: React.FC = () => {
                                         onChange={(e) => setHasAgreedToSubscriptionTerms(e.target.checked)}
                                     />
                                     <span>
-                                        上記（自動更新・解約方法・返金ポリシー）を確認し、購入手続きを進めます（同意記録: v{CONSENT_VERSION}）。
+                                        {t(language, 'pricing.precheckout.consent').replace('{version}', CONSENT_VERSION)}
                                     </span>
                                 </label>
                             </div>
 
                             <div className="pricing-cards">
-                                {PLANS.map((plan) => (
+                                {plans.map((plan) => (
                                     <PricingCard
                                         key={plan.id}
                                         name={plan.name}
@@ -209,18 +178,18 @@ export const PricingPage: React.FC = () => {
                     )}
 
                     <div className="pricing-faq">
-                        <h2>よくある質問</h2>
+                        <h2>{t(language, 'pricing.faq.title')}</h2>
                         <div className="faq-item">
-                            <h3>いつでも解約できますか？</h3>
-                            <p>はい。Stripe のプラン管理ページ（ポータル）からいつでも解約できます。解約の反映タイミングはポータルに表示される内容（次回更新で停止/即時停止など）に従います。</p>
+                            <h3>{t(language, 'pricing.faq.q1')}</h3>
+                            <p>{t(language, 'pricing.faq.a1')}</p>
                         </div>
                         <div className="faq-item">
-                            <h3>プランの変更はできますか？</h3>
-                            <p>はい。Stripe のポータルから変更できます。反映タイミング（即時/次回更新）や日割りの有無は Stripe 側の表示に従います。</p>
+                            <h3>{t(language, 'pricing.faq.q2')}</h3>
+                            <p>{t(language, 'pricing.faq.a2')}</p>
                         </div>
                         <div className="faq-item">
-                            <h3>回数はどのようにカウントされますか？</h3>
-                            <p>ブログ4コマと動画4コマの合計で月間回数がカウントされます。</p>
+                            <h3>{t(language, 'pricing.faq.q3')}</h3>
+                            <p>{t(language, 'pricing.faq.a3')}</p>
                         </div>
                     </div>
                 </div>
