@@ -152,7 +152,7 @@ export function InputForm({
                             <textarea
                                 id="userPrompt"
                                 className="form-input textarea"
-                                placeholder="例: ほのぼのした雰囲気で、猫のキャラクターを使ってください"
+                                placeholder={t(language, 'form.userPrompt.placeholder')}
                                 value={userPrompt}
                                 onChange={(e) => setUserPrompt(e.target.value)}
                                 disabled={loading}
@@ -201,7 +201,7 @@ export function InputForm({
                     {mode === 'demo' && (
                         <div className="demo-notice">
                             <span className="demo-notice-text">
-                                Demo出力には透かしが入ります（BYOKで透かし無し）
+                                {t(language, 'demo.watermarkNotice')}
                             </span>
                         </div>
                     )}

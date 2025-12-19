@@ -22,18 +22,10 @@ export function NavBar({ active }: NavBarProps) {
 
             <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <select
+                    className="auth-button primary language-select"
                     value={language}
                     onChange={(e) => setLanguage(e.target.value === 'en' ? 'en' : 'ja')}
                     aria-label={t(language, 'nav.language')}
-                    style={{
-                        padding: '8px 10px',
-                        borderRadius: '999px',
-                        border: '1px solid rgba(255,255,255,0.25)',
-                        background: 'rgba(0,0,0,0.2)',
-                        color: 'white',
-                        fontWeight: 600,
-                        cursor: 'pointer',
-                    }}
                 >
                     <option value="ja">{t(language, 'nav.language.ja')}</option>
                     <option value="en">{t(language, 'nav.language.en')}</option>

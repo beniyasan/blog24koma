@@ -153,7 +153,7 @@ export function MovieInputForm({
                             <textarea
                                 id="userPrompt"
                                 className="form-input textarea"
-                                placeholder="例: ほのぼのした雰囲気で、猫のキャラクターを使ってください"
+                                placeholder={t(language, 'form.userPrompt.placeholder')}
                                 value={userPrompt}
                                 onChange={(e) => setUserPrompt(e.target.value)}
                                 disabled={loading}
@@ -204,7 +204,7 @@ export function MovieInputForm({
                     {mode === 'demo' && demoStatus?.isAvailable && (
                         <div className="demo-notice">
                             <p className="demo-notice-text">
-                                デモ版のため生成結果に透かしが入ります
+                                {t(language, 'demo.watermarkNotice')}
                             </p>
                         </div>
                     )}

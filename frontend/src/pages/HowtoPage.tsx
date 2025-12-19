@@ -37,9 +37,7 @@ export const HowtoPage: React.FC = () => {
                 <NavBar active="/howto" />
                 <div className="hero-content">
                     <h1 className="header-title">{t(language, 'nav.howto')}</h1>
-                    <p className="header-subtitle">
-                        URLを貼るだけで、ブログ記事や動画を4コマ漫画に変換できます
-                    </p>
+                    <p className="header-subtitle">{t(language, 'howto.hero.subtitle')}</p>
                     {!isAuthLoading && isAuthenticated && user && (
                         <p className="header-note">
                             ログイン中: {user.email} ({user.plan.toUpperCase()})
@@ -51,87 +49,87 @@ export const HowtoPage: React.FC = () => {
             <main className="container">
                 <div className="howto-page">
                     <section className="howto-section">
-                        <h2 className="howto-section-title">まずはメニューを確認</h2>
+                        <h2 className="howto-section-title">{t(language, 'howto.section.menu.title')}</h2>
                         <HowtoStep
-                            title="メニューから機能を選ぶ"
-                            description="上部メニューから「ブログ4コマ」「動画4コマ」「料金プラン」「使い方」へ移動できます。"
+                            title={t(language, 'howto.section.menu.step.title')}
+                            description={t(language, 'howto.section.menu.step.desc')}
                             imageSrc="/howto/common_top.png"
-                            imageAlt="上部メニューが表示されたトップ画面"
+                            imageAlt={t(language, 'howto.section.menu.step.alt')}
                         />
                     </section>
 
                     <section className="howto-section">
-                        <h2 className="howto-section-title">ログイン（必要な場合）</h2>
+                        <h2 className="howto-section-title">{t(language, 'howto.section.login.title')}</h2>
                         <HowtoStep
-                            title="ログイン状態を確認"
-                            description="右上のログインボタン、またはプラン表示からログイン状態を確認できます。"
+                            title={t(language, 'howto.section.login.step.title')}
+                            description={t(language, 'howto.section.login.step.desc')}
                             imageSrc="/howto/common_login.png"
-                            imageAlt="ログイン状態が表示された画面"
+                            imageAlt={t(language, 'howto.section.login.step.alt')}
                         />
                     </section>
 
                     <section className="howto-section">
-                        <h2 className="howto-section-title">ブログ4コマの作り方</h2>
+                        <h2 className="howto-section-title">{t(language, 'howto.section.blog.title')}</h2>
                         <div className="howto-steps">
                             <HowtoStep
-                                title="1. 記事URLを入力"
-                                description="対象の記事URLを貼り付けて、生成を開始します。"
+                                title={t(language, 'howto.section.blog.step1.title')}
+                                description={t(language, 'howto.section.blog.step1.desc')}
                                 imageSrc="/howto/blog_inp_url.png"
-                                imageAlt="ブログ4コマのURL入力フォーム"
+                                imageAlt={t(language, 'howto.section.blog.step1.alt')}
                             />
                             <HowtoStep
-                                title="2. 生成中はしばらく待つ"
-                                description="記事内容を解析して、4コマ漫画を生成します。"
+                                title={t(language, 'howto.section.blog.step2.title')}
+                                description={t(language, 'howto.section.blog.step2.desc')}
                                 imageSrc="/howto/blog_making.png"
-                                imageAlt="ブログ4コマの生成中画面"
+                                imageAlt={t(language, 'howto.section.blog.step2.alt')}
                             />
                             <HowtoStep
-                                title="3. 結果を確認・保存"
-                                description="生成された4コマを確認し、必要に応じて保存します。"
+                                title={t(language, 'howto.section.blog.step3.title')}
+                                description={t(language, 'howto.section.blog.step3.desc')}
                                 imageSrc="/howto/blog_result.png"
-                                imageAlt="ブログ4コマの生成結果画面"
+                                imageAlt={t(language, 'howto.section.blog.step3.alt')}
                             />
                         </div>
                     </section>
 
                     <section className="howto-section">
-                        <h2 className="howto-section-title">動画4コマの作り方</h2>
+                        <h2 className="howto-section-title">{t(language, 'howto.section.movie.title')}</h2>
                         <div className="howto-steps">
                             <HowtoStep
-                                title="1. YouTube動画URLを入力"
-                                description="YouTubeのURLを貼り付けて、生成を開始します。"
+                                title={t(language, 'howto.section.movie.step1.title')}
+                                description={t(language, 'howto.section.movie.step1.desc')}
                                 imageSrc="/howto/movie_inp_url.png"
-                                imageAlt="動画4コマのURL入力フォーム"
+                                imageAlt={t(language, 'howto.section.movie.step1.alt')}
                             />
                             <HowtoStep
-                                title="2. 生成中はしばらく待つ"
-                                description="動画内容を解析して、4コマ漫画を生成します。"
+                                title={t(language, 'howto.section.movie.step2.title')}
+                                description={t(language, 'howto.section.movie.step2.desc')}
                                 imageSrc="/howto/movie_making.png"
-                                imageAlt="動画4コマの生成中画面"
+                                imageAlt={t(language, 'howto.section.movie.step2.alt')}
                             />
                             <HowtoStep
-                                title="3. 結果を確認"
-                                description="生成された4コマを確認し、必要に応じて保存します。"
+                                title={t(language, 'howto.section.movie.step3.title')}
+                                description={t(language, 'howto.section.movie.step3.desc')}
                                 imageSrc="/howto/movie_result.png"
-                                imageAlt="動画4コマの生成結果画面"
+                                imageAlt={t(language, 'howto.section.movie.step3.alt')}
                             />
                         </div>
                     </section>
 
                     <section className="howto-section">
-                        <h2 className="howto-section-title">料金プラン</h2>
+                        <h2 className="howto-section-title">{t(language, 'howto.section.pricing.title')}</h2>
                         <HowtoStep
-                            title="プランを選択してアップグレード"
-                            description="Lite/Pro を選ぶとチェックアウトに進みます。必要に応じてプラン管理（Stripeポータル）から変更・解約できます。"
+                            title={t(language, 'howto.section.pricing.step.title')}
+                            description={t(language, 'howto.section.pricing.step.desc')}
                             imageSrc="/howto/pricing.png"
-                            imageAlt="料金プラン画面"
+                            imageAlt={t(language, 'howto.section.pricing.step.alt')}
                         />
                     </section>
 
                     <section className="howto-cta">
-                        <Link to="/" className="howto-cta-button primary">ブログ4コマを試す</Link>
-                        <Link to="/movie" className="howto-cta-button secondary">動画4コマを試す</Link>
-                        <Link to="/pricing" className="howto-cta-button secondary">料金プランを見る</Link>
+                        <Link to="/" className="howto-cta-button primary">{t(language, 'howto.cta.blog')}</Link>
+                        <Link to="/movie" className="howto-cta-button secondary">{t(language, 'howto.cta.movie')}</Link>
+                        <Link to="/pricing" className="howto-cta-button secondary">{t(language, 'howto.cta.pricing')}</Link>
                     </section>
                 </div>
             </main>
