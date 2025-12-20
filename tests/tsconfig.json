@@ -11,7 +11,14 @@
     "rootDir": ".."
   },
   "include": [
+    "./cloudflare-pages.d.ts",
+    "../functions/api/_auth.ts",
+    "../functions/api/_cors.ts",
+    "../functions/api/config.ts",
+    "../functions/api/checkout.ts",
+    "../functions/api/portal.ts",
     "../functions/api/prompts.ts",
+    "../functions/api/subscription.ts",
     "../frontend/src/i18n.ts"
   ]
 }

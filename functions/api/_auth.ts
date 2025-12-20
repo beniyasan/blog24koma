@@ -54,7 +54,7 @@ async function getAccessPublicKeys(teamDomain: string): Promise<CryptoKey[]> {
 /**
  * Decode base64url to Uint8Array
  */
-function base64urlDecode(str: string): Uint8Array {
+function base64urlDecode(str: string): Uint8Array<ArrayBuffer> {
     // Replace URL-safe characters
     const base64 = str.replace(/-/g, '+').replace(/_/g, '/');
     // Pad if needed

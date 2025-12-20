@@ -1,16 +1,48 @@
 // Stripe Customer Portal API
 // Allows users to manage their subscription (change plan, cancel, update payment)
 
-import { getCorsHeaders, corsPreflightResponse } from './_cors';
-import { getUserFromAccessHeaders } from './_auth';
+import { getAllowedOrigin, getCorsHeaders, corsPreflightResponse } from './_cors';
 
 interface Env {
     DB: D1Database;
+    BILLING_ENABLED?: string;
     STRIPE_SECRET_KEY: string;
 }
 
 interface PortalRequest {
     returnUrl?: string;
+}
+
+function isSafeRelativePath(path: string): boolean {
+    if (!path.startsWith('/')) return false;
+    if (path.startsWith('//')) return false;
+    if (path.includes('\\')) return false;
+    return true;
+}
+
+function sanitizeReturnUrl(value: unknown, origin: string | null): string {
+    const baseOrigin = getAllowedOrigin(origin);
+    const defaultUrl = `${baseOrigin}/pricing`;
+
+    if (typeof value !== 'string') return defaultUrl;
+    const trimmed = value.trim();
+    if (!trimmed) return defaultUrl;
+
+    if (isSafeRelativePath(trimmed)) {
+        return `${baseOrigin}${trimmed}`;
+    }
+
+    try {
+        const parsed = new URL(trimmed);
+        const allowedOrigin = getAllowedOrigin(parsed.origin);
+        if (allowedOrigin === parsed.origin) {
+            return parsed.toString();
+        }
+    } catch {
+        return defaultUrl;
+    }
+
+    return defaultUrl;
 }
 
 function jsonResponse(data: unknown, origin: string | null, status = 200): Response {
@@ -30,16 +62,20 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
     const origin = request.headers.get('Origin');
 
     try {
-        // Check authentication
-        const auth = getUserFromAccessHeaders(request);
-        if (!auth.authenticated || !auth.user) {
+        const billingEnabled = env.BILLING_ENABLED?.trim().toLowerCase() === 'true';
+        if (!billingEnabled) {
+            return jsonResponse({ error: 'Billing is temporarily disabled' }, origin, 503);
+        }
+
+        const authenticatedEmail = request.headers.get('CF-Access-Authenticated-User-Email')?.trim();
+        if (!authenticatedEmail) {
             return jsonResponse({ error: 'Authentication required' }, origin, 401);
         }
 
         // Get user from database
         const user = await env.DB.prepare(
             'SELECT stripe_customer_id FROM users WHERE email = ?'
-        ).bind(auth.user.email).first() as { stripe_customer_id: string | null } | null;
+        ).bind(authenticatedEmail).first() as { stripe_customer_id: string | null } | null;
 
         if (!user?.stripe_customer_id) {
             return jsonResponse({ error: 'No subscription found' }, origin, 400);
@@ -47,7 +83,7 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
 
         // Parse request body
         const body = await request.json() as PortalRequest;
-        const returnUrl = body.returnUrl || 'https://blog4koma.com/pricing';
+        const returnUrl = sanitizeReturnUrl(body.returnUrl, origin);
 
         // Create Stripe Customer Portal session
         const portalResponse = await fetch('https://api.stripe.com/v1/billing_portal/sessions', {

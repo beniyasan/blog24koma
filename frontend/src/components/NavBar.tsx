@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
+import { useRuntimeConfig } from '../hooks/useRuntimeConfig';
 import { useLanguage } from '../hooks/useLanguage';
 import { t } from '../i18n';
 
@@ -11,13 +12,16 @@ interface NavBarProps {
 
 export function NavBar({ active }: NavBarProps) {
     const { isAuthenticated, user, login, logout, openPortal } = useAuth();
+    const { config } = useRuntimeConfig();
     const { language, setLanguage } = useLanguage();
 
     return (
         <nav className="nav-links">
             <Link to="/" className={`nav-link ${active === '/' ? 'active' : ''}`}>{t(language, 'nav.blog')}</Link>
             <Link to="/movie" className={`nav-link ${active === '/movie' ? 'active' : ''}`}>{t(language, 'nav.movie')}</Link>
-            <Link to="/pricing" className={`nav-link ${active === '/pricing' ? 'active' : ''}`}>{t(language, 'nav.pricing')}</Link>
+            {config.billingEnabled && (
+                <Link to="/pricing" className={`nav-link ${active === '/pricing' ? 'active' : ''}`}>{t(language, 'nav.pricing')}</Link>
+            )}
             <Link to="/howto" className={`nav-link ${active === '/howto' ? 'active' : ''}`}>{t(language, 'nav.howto')}</Link>
 
             <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -46,14 +50,16 @@ export function NavBar({ active }: NavBarProps) {
                                     {user.email}
                                 </div>
                                 <div className="user-menu-divider" />
-                                {user.hasStripeCustomer && (
+                                {config.billingEnabled && user.hasStripeCustomer && (
                                     <button onClick={openPortal} className="user-menu-item primary">
                                         {t(language, 'auth.managePlan')}
                                     </button>
                                 )}
-                                <Link to="/pricing" className="user-menu-item">
-                                    {t(language, 'nav.pricing')}
-                                </Link>
+                                {config.billingEnabled && (
+                                    <Link to="/pricing" className="user-menu-item">
+                                        {t(language, 'nav.pricing')}
+                                    </Link>
+                                )}
                                 <div className="user-menu-divider" />
                                 <button onClick={logout} className="user-menu-item danger">
                                     {t(language, 'auth.logout')}

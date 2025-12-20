@@ -10,6 +10,7 @@ DEMO_DAILY_LIMIT = "5"
 MOVIE_DEMO_DAILY_LIMIT = "3"
 STRIPE_LITE_PRICE_ID = "price_1SeuNKRMCFkIeD9MyU5gJTWj"
 STRIPE_PRO_PRICE_ID = "price_1SeuNgRMCFkIeD9Mig3kTVBy"
+BILLING_ENABLED = "false"
 
 # KV Namespaces for URL logging
 [[kv_namespaces]]

@@ -37,19 +37,19 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
     const origin = request.headers.get('Origin');
 
     try {
-        // Get user ID from query params (in production, this would come from auth)
-        const url = new URL(request.url);
-        const userId = url.searchParams.get('userId');
+        const authenticatedEmail = request.headers.get('CF-Access-Authenticated-User-Email')?.trim();
 
-        if (!userId) {
-            // Return free tier info for anonymous users
+        if (!authenticatedEmail) {
             return jsonResponse({
                 plan: 'free',
                 limits: PLAN_LIMITS.free,
                 usage: { blog: 0, movie: 0, total: 0 },
                 remaining: { blog: 0, movie: 0, total: 0 },
+                user: null,
             }, origin);
         }
+
+        const userId = authenticatedEmail;
 
         // Get user from database
         const user = await env.DB.prepare(

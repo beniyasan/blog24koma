@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
+import { Navigate } from 'react-router-dom';
 import { PricingCard } from '../components/PricingCard';
 import { NavBar } from '../components/NavBar';
 import { useAuth } from '../hooks/useAuth';
 import { useLanguage } from '../hooks/useLanguage';
+import { useRuntimeConfig } from '../hooks/useRuntimeConfig';
 import { t, type Language } from '../i18n';
 import './PricingPage.css';
 
@@ -49,6 +51,7 @@ function getPlans(language: Language) {
 }
 
 export const PricingPage: React.FC = () => {
+    const { config, isLoading: isConfigLoading } = useRuntimeConfig();
     const { isLoading: isAuthLoading, isAuthenticated, user, login } = useAuth();
     const { language } = useLanguage();
     const [isCheckoutLoading, setIsCheckoutLoading] = useState<string | null>(null);
@@ -59,6 +62,10 @@ export const PricingPage: React.FC = () => {
 
     const currentPlan = user?.plan || 'free';
     const plans = getPlans(language);
+
+    if (!isConfigLoading && !config.billingEnabled) {
+        return <Navigate to="/" replace />;
+    }
 
     const handleSelectPlan = async (planId: string) => {
         if (planId === 'free' || planId === currentPlan) return;
@@ -131,7 +138,7 @@ export const PricingPage: React.FC = () => {
                         </div>
                     )}
 
-                    {isAuthLoading ? (
+                    {isAuthLoading || isConfigLoading ? (
                         <div className="pricing-loading">{t(language, 'pricing.loading')}</div>
                     ) : (
                         <>

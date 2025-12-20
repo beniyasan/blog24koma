@@ -30,14 +30,16 @@ function isOriginAllowed(origin: string | null): boolean {
     });
 }
 
+export function getAllowedOrigin(origin: string | null): string {
+    const isAllowed = isOriginAllowed(origin);
+    return isAllowed && origin ? origin : 'https://blog4koma.com';
+}
+
 /**
  * Get CORS headers for the given request origin
  */
 export function getCorsHeaders(origin: string | null): Record<string, string> {
-    const isAllowed = isOriginAllowed(origin);
-
-    // If origin is allowed, echo it back; otherwise return first allowed domain
-    const allowedOrigin = isAllowed && origin ? origin : 'https://blog4koma.com';
+    const allowedOrigin = getAllowedOrigin(origin);
 
     return {
         'Access-Control-Allow-Origin': allowedOrigin,

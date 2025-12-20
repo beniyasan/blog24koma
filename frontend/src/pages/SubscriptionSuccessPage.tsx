@@ -2,12 +2,14 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { NavBar } from '../components/NavBar';
 import { useLanguage } from '../hooks/useLanguage';
+import { useRuntimeConfig } from '../hooks/useRuntimeConfig';
 import { t } from '../i18n';
 import './SubscriptionSuccessPage.css';
 
 export function SubscriptionSuccessPage() {
     const [countdown, setCountdown] = useState(5);
     const { language } = useLanguage();
+    const { config } = useRuntimeConfig();
 
     useEffect(() => {
         // Auto redirect to home after countdown
@@ -48,9 +50,11 @@ export function SubscriptionSuccessPage() {
                             <Link to="/" className="success-button primary">
                                 {t(language, 'form.generate')}
                             </Link>
-                            <Link to="/pricing" className="success-button secondary">
-                                プランを確認する
-                            </Link>
+                            {config.billingEnabled && (
+                                <Link to="/pricing" className="success-button secondary">
+                                    プランを確認する
+                                </Link>
+                            )}
                         </div>
 
                         <p className="redirect-notice">

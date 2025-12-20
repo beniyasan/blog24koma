@@ -1,6 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
+import { useRuntimeConfig } from '../hooks/useRuntimeConfig';
 import { NavBar } from '../components/NavBar';
 import { useLanguage } from '../hooks/useLanguage';
 import { t } from '../i18n';
@@ -29,6 +30,7 @@ const HowtoStep: React.FC<HowtoStepProps> = ({ title, description, imageSrc, ima
 
 export const HowtoPage: React.FC = () => {
     const { isLoading: isAuthLoading, isAuthenticated, user } = useAuth();
+    const { config } = useRuntimeConfig();
     const { language } = useLanguage();
 
     return (
@@ -116,20 +118,24 @@ export const HowtoPage: React.FC = () => {
                         </div>
                     </section>
 
-                    <section className="howto-section">
-                        <h2 className="howto-section-title">{t(language, 'howto.section.pricing.title')}</h2>
-                        <HowtoStep
-                            title={t(language, 'howto.section.pricing.step.title')}
-                            description={t(language, 'howto.section.pricing.step.desc')}
-                            imageSrc="/howto/pricing.png"
-                            imageAlt={t(language, 'howto.section.pricing.step.alt')}
-                        />
-                    </section>
+                    {config.billingEnabled && (
+                        <section className="howto-section">
+                            <h2 className="howto-section-title">{t(language, 'howto.section.pricing.title')}</h2>
+                            <HowtoStep
+                                title={t(language, 'howto.section.pricing.step.title')}
+                                description={t(language, 'howto.section.pricing.step.desc')}
+                                imageSrc="/howto/pricing.png"
+                                imageAlt={t(language, 'howto.section.pricing.step.alt')}
+                            />
+                        </section>
+                    )}
 
                     <section className="howto-cta">
                         <Link to="/" className="howto-cta-button primary">{t(language, 'howto.cta.blog')}</Link>
                         <Link to="/movie" className="howto-cta-button secondary">{t(language, 'howto.cta.movie')}</Link>
-                        <Link to="/pricing" className="howto-cta-button secondary">{t(language, 'howto.cta.pricing')}</Link>
+                        {config.billingEnabled && (
+                            <Link to="/pricing" className="howto-cta-button secondary">{t(language, 'howto.cta.pricing')}</Link>
+                        )}
                     </section>
                 </div>
             </main>
