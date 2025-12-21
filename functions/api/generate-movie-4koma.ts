@@ -8,6 +8,8 @@ import type {
 } from '../../frontend/src/types';
 import { getCorsHeaders, corsPreflightResponse } from './_cors';
 import { getUserUsage, recordUsage, getUserFromJwt } from './_usage';
+import { normalizeLanguage, getImagePrompt } from './prompts';
+import { fetchYouTubeTranscriptJson3, formatTranscriptForPrompt } from './youtubeTranscript';
 
 // ===== Env Interface =====
 interface Env {
@@ -48,6 +50,115 @@ class GeminiError extends Error {
     }
 }
 
+async function generateVideoSummaryFromVideoInfo(
+    apiKey: string,
+    params: {
+        videoInfo: YouTubeVideoInfo;
+        youtubeUrl: string;
+        userPrompt: string;
+        model: string;
+        language: string;
+    }
+): Promise<MovieSummary> {
+    const lang = normalizeLanguage(params.language);
+
+    const systemPrompt = lang === 'en'
+        ? `You are a video content analyst.
+
+Given ONLY the YouTube title/metadata, infer a plausible summary that can be adapted into a 4-panel comic.
+
+Rules:
+- This is a fallback when transcript is unavailable.
+- Be explicit that this is an inference based on title/metadata.
+- Keep it concise (200-400 characters).
+
+Output format:
+Return ONLY valid JSON (no markdown).
+{
+  "title": "...",
+  "summary": "..."
+}`
+        : `あなたは動画コンテンツアナリストです。
+
+YouTube動画のタイトル/メタ情報だけをもとに、内容を推測して4コマ化しやすい要約を作成してください。
+
+ルール:
+- 字幕が取得できない場合のフォールバックである
+- タイトル/メタ情報からの推測であることが伝わる要約にする
+- 200-400文字程度で簡潔に
+
+出力形式:
+必ずJSONのみ（Markdown禁止）。
+{
+  "title": "...",
+  "summary": "..."
+}`;
+
+    const userContent = lang === 'en'
+        ? `YouTube URL: ${params.youtubeUrl}
+Video title: ${params.videoInfo.title}
+Channel: ${params.videoInfo.author}
+${params.videoInfo.description ? `Description: ${params.videoInfo.description}\n` : ''}
+${params.userPrompt ? `Additional instructions:\n${params.userPrompt}` : ''}`
+        : `YouTube URL: ${params.youtubeUrl}
+動画タイトル: ${params.videoInfo.title}
+チャンネル名: ${params.videoInfo.author}
+${params.videoInfo.description ? `説明: ${params.videoInfo.description}\n` : ''}
+${params.userPrompt ? `補足指示:\n${params.userPrompt}` : ''}`;
+
+    const response = await fetch(`${GEMINI_API_BASE}/models/${params.model}:generateContent`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'x-goog-api-key': apiKey,
+        },
+        body: JSON.stringify({
+            contents: [{ role: 'user', parts: [{ text: systemPrompt + '\n\n' + userContent }] }],
+            generationConfig: {
+                temperature: 0.7,
+                maxOutputTokens: 1024,
+            },
+        }),
+    });
+
+    if (!response.ok) {
+        throw new GeminiError(`動画要約の生成中にエラーが発生しました: ${response.status}`);
+    }
+
+    const result = await response.json();
+    const textContent = result.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (!textContent) {
+        throw new GeminiError('動画要約の生成結果を取得できませんでした');
+    }
+
+    return parseMovieSummaryJson(textContent);
+}
+
+function parseMovieSummaryJson(text: string): MovieSummary {
+    const jsonMatch = text.match(/\{[\s\S]*?\}/);
+    if (!jsonMatch) {
+        throw new GeminiError('動画要約のJSONを取得できませんでした');
+    }
+
+    let parsed: unknown;
+    try {
+        parsed = JSON.parse(jsonMatch[0]);
+    } catch {
+        throw new GeminiError('動画要約のJSONのパースに失敗しました');
+    }
+
+    if (!parsed || typeof parsed !== 'object') {
+        throw new GeminiError('動画要約の形式が不正です');
+    }
+
+    const obj = parsed as Record<string, unknown>;
+    if (typeof obj.title !== 'string' || typeof obj.summary !== 'string') {
+        throw new GeminiError('動画要約の形式が不正です');
+    }
+
+    return { title: obj.title, summary: obj.summary };
+}
+
 // ===== Response Helpers =====
 function jsonResponse(data: unknown, origin: string | null, status = 200): Response {
     return new Response(JSON.stringify(data), {
@@ -67,7 +178,7 @@ function validateRequest(body: unknown): GenerateMovie4KomaRequest {
         throw new ValidationError('Request body must be a JSON object');
     }
 
-    const { youtubeUrl, userPrompt, geminiApiKey, modelSettings, mode } = body as Record<string, unknown>;
+    const { youtubeUrl, userPrompt, geminiApiKey, modelSettings, mode, language } = body as Record<string, unknown>;
 
     if (typeof youtubeUrl !== 'string' || !youtubeUrl.trim()) {
         throw new ValidationError('youtubeUrl is required');
@@ -89,6 +200,10 @@ function validateRequest(body: unknown): GenerateMovie4KomaRequest {
 
     if (userPrompt !== undefined && typeof userPrompt !== 'string') {
         throw new ValidationError('userPrompt must be a string');
+    }
+
+    if (language !== undefined && typeof language !== 'string') {
+        throw new ValidationError('language must be a string');
     }
 
     if (modelSettings !== undefined) {
@@ -134,6 +249,7 @@ function validateRequest(body: unknown): GenerateMovie4KomaRequest {
             storyboardModel: DEFAULT_STORYBOARD_MODEL,
             imageModel: DEFAULT_IMAGE_MODEL,
         },
+        language: normalizeLanguage(language),
         mode: requestMode as 'demo' | 'byok',
     };
 }
@@ -223,105 +339,225 @@ async function fetchYouTubeVideoInfo(videoId: string): Promise<YouTubeVideoInfo>
     };
 }
 
-// ===== Gemini API: Generate Summary from Video Info =====
-async function generateVideoSummary(
-    apiKey: string,
-    videoInfo: YouTubeVideoInfo,
-    youtubeUrl: string,
-    model: string
-): Promise<MovieSummary> {
-    const systemPrompt = `あなたは動画コンテンツアナリストです。YouTube動画のタイトルと情報から、動画の内容を推測して要約を作成してください。
+// ===== Gemini API: Story (Kishotenketsu) from Transcript =====
+interface MovieStoryPart {
+    part: 1 | 2 | 3 | 4;
+    startSec: number;
+    endSec: number;
+    summary: string;
+}
 
-指示:
-1. タイトルから動画のメインテーマを推測する
-2. 視聴者に伝えたいメッセージを想像する
-3. 4コマ漫画の素材になるような要約を作成する
+interface MovieStory {
+    title: string;
+    overallSummary: string;
+    parts: MovieStoryPart[];
+}
+
+async function generateKishotenketsuStory(
+    apiKey: string,
+    params: {
+        videoInfo: YouTubeVideoInfo;
+        youtubeUrl: string;
+        transcriptText: string;
+        userPrompt: string;
+        model: string;
+        language: string;
+    }
+): Promise<MovieStory> {
+    const lang = normalizeLanguage(params.language);
+
+    const systemPrompt = lang === 'en'
+        ? `You are a video content analyst and story editor.
+
+Turn the provided timestamped transcript into a 4-part kishotenketsu story (setup, development, twist, conclusion) that can be converted into a 4-panel comic.
+
+Rules:
+- Use the transcript as the source of truth (do not invent scenes not implied by it).
+- Output exactly 4 parts.
+- Each part must include startSec and endSec (numbers in seconds) that reflect the transcript timeline.
+- overallSummary should be 200-400 characters.
+
+Output format:
+Return ONLY valid JSON (no markdown).
+{
+  "title": "...",
+  "overallSummary": "...",
+  "parts": [
+    {"part": 1, "startSec": 0, "endSec": 10, "summary": "..."},
+    {"part": 2, "startSec": 10, "endSec": 20, "summary": "..."},
+    {"part": 3, "startSec": 20, "endSec": 30, "summary": "..."},
+    {"part": 4, "startSec": 30, "endSec": 40, "summary": "..."}
+  ]
+}`
+        : `あなたは動画コンテンツアナリスト兼ストーリー編集者です。
+
+以下の「タイムスタンプ付き字幕（時系列）」を根拠に、4コマにできる起承転結のストーリーを作ってください。
+
+ルール:
+- 字幕の内容を根拠にし、根拠のない創作はしない
+- 起承転結の4パートに必ず分ける
+- 各パートに startSec/endSec（秒・数値）を入れ、字幕の時間軸と整合させる
+- overallSummary は200-400文字程度
 
 出力形式:
-必ず以下のJSON形式のみを出力してください。他の説明は不要です。
+必ずJSONのみ（Markdown禁止）。
 {
-  "title": "動画のタイトル",
-  "summary": "動画内容の推測要約（200-400文字程度、4コマ漫画にしやすい内容で）"
+  "title": "...",
+  "overallSummary": "...",
+  "parts": [
+    {"part": 1, "startSec": 0, "endSec": 10, "summary": "..."},
+    {"part": 2, "startSec": 10, "endSec": 20, "summary": "..."},
+    {"part": 3, "startSec": 20, "endSec": 30, "summary": "..."},
+    {"part": 4, "startSec": 30, "endSec": 40, "summary": "..."}
+  ]
 }`;
 
-    const userContent = `以下のYouTube動画の情報から、内容を推測して要約をJSON形式で出力してください。
+    const userContent = lang === 'en'
+        ? `YouTube URL: ${params.youtubeUrl}
+Video title: ${params.videoInfo.title}
+Channel: ${params.videoInfo.author}
 
-動画タイトル: ${videoInfo.title}
-チャンネル名: ${videoInfo.author}
-URL: ${youtubeUrl}
-${videoInfo.description ? `説明: ${videoInfo.description}` : ''}`;
+[Transcript]
+${params.transcriptText}
 
-    const response = await fetch(
-        `${GEMINI_API_BASE}/models/${model}:generateContent`,
-        {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'x-goog-api-key': apiKey,
+${params.userPrompt ? `Additional instructions:\n${params.userPrompt}` : ''}`
+        : `YouTube URL: ${params.youtubeUrl}
+動画タイトル: ${params.videoInfo.title}
+チャンネル名: ${params.videoInfo.author}
+
+【字幕（タイムスタンプ付き）】
+${params.transcriptText}
+
+${params.userPrompt ? `補足指示:\n${params.userPrompt}` : ''}`;
+
+    const response = await fetch(`${GEMINI_API_BASE}/models/${params.model}:generateContent`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'x-goog-api-key': apiKey,
+        },
+        body: JSON.stringify({
+            contents: [{ role: 'user', parts: [{ text: systemPrompt + '\n\n' + userContent }] }],
+            generationConfig: {
+                temperature: 0.4,
+                maxOutputTokens: 2048,
             },
-            body: JSON.stringify({
-                contents: [{ role: 'user', parts: [{ text: systemPrompt + '\n\n' + userContent }] }],
-                generationConfig: {
-                    temperature: 0.7,
-                    maxOutputTokens: 2048,
-                },
-            }),
-        }
-    );
+        }),
+    });
 
     if (!response.ok) {
-        throw new GeminiError(`動画要約の生成中にエラーが発生しました: ${response.status}`);
+        throw new GeminiError(`動画ストーリー生成エラー: ${response.status}`);
     }
 
     const result = await response.json();
     const textContent = result.candidates?.[0]?.content?.parts?.[0]?.text;
-
     if (!textContent) {
-        throw new GeminiError('動画要約の生成結果を取得できませんでした');
+        throw new GeminiError('動画ストーリーの生成結果を取得できませんでした');
     }
 
-    return parseMovieSummaryJson(textContent);
+    return parseMovieStoryJson(textContent);
 }
 
-function parseMovieSummaryJson(text: string): MovieSummary {
-    // Extract JSON object from response
-    const jsonMatch = text.match(/\{[\s\S]*?\}/);
+function parseMovieStoryJson(text: string): MovieStory {
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
-        throw new GeminiError('動画要約のJSONを取得できませんでした');
+        throw new GeminiError('動画ストーリーのJSONを取得できませんでした');
     }
 
-    let parsed;
+    let parsed: unknown;
     try {
         parsed = JSON.parse(jsonMatch[0]);
     } catch {
-        throw new GeminiError('動画要約のJSONのパースに失敗しました');
+        throw new GeminiError('動画ストーリーのJSONのパースに失敗しました');
     }
 
-    if (typeof parsed.title !== 'string' || typeof parsed.summary !== 'string') {
-        throw new GeminiError('動画要約の形式が不正です');
+    if (!parsed || typeof parsed !== 'object') {
+        throw new GeminiError('動画ストーリーの形式が不正です');
+    }
+
+    const obj = parsed as Record<string, unknown>;
+    if (typeof obj.title !== 'string' || typeof obj.overallSummary !== 'string' || !Array.isArray(obj.parts)) {
+        throw new GeminiError('動画ストーリーの形式が不正です');
+    }
+
+    if (obj.parts.length !== 4) {
+        throw new GeminiError('動画ストーリーは4パート（起承転結）である必要があります');
+    }
+
+    const parts = obj.parts.map((p, index) => {
+        const partObj = p as Record<string, unknown>;
+        const expectedPart = (index + 1) as 1 | 2 | 3 | 4;
+        const part = typeof partObj.part === 'number' ? (partObj.part as number) : expectedPart;
+        const startSec = typeof partObj.startSec === 'number' ? partObj.startSec : NaN;
+        const endSec = typeof partObj.endSec === 'number' ? partObj.endSec : NaN;
+        const summary = typeof partObj.summary === 'string' ? partObj.summary : '';
+
+        if (![1, 2, 3, 4].includes(part) || !Number.isFinite(startSec) || !Number.isFinite(endSec) || !summary) {
+            throw new GeminiError('動画ストーリーのパート形式が不正です');
+        }
+
+        return {
+            part: expectedPart,
+            startSec: Math.max(0, startSec),
+            endSec: Math.max(0, endSec),
+            summary,
+        } as MovieStoryPart;
+    });
+
+    for (let i = 0; i < parts.length; i += 1) {
+        if (parts[i].startSec > parts[i].endSec) {
+            throw new GeminiError('動画ストーリーの時間範囲が不正です');
+        }
+        if (i > 0 && parts[i].startSec < parts[i - 1].startSec) {
+            throw new GeminiError('動画ストーリーの時系列が不正です');
+        }
     }
 
     return {
-        title: parsed.title,
-        summary: parsed.summary,
+        title: obj.title,
+        overallSummary: obj.overallSummary,
+        parts,
     };
 }
 
 // ===== Gemini API: Storyboard Generation =====
-async function generateStoryboard(
+async function generateStoryboardFromStory(
     apiKey: string,
-    movieSummary: MovieSummary,
-    userPrompt: string,
-    model: string
+    params: {
+        story: MovieStory;
+        userPrompt: string;
+        model: string;
+        language: string;
+    }
 ): Promise<StoryboardPanel[]> {
-    const systemPrompt = `あなたは4コマ漫画の脚本家です。与えられた動画の要約を4コマ漫画の絵コンテに変換してください。
+    const lang = normalizeLanguage(params.language);
+
+    const systemPrompt = lang === 'en'
+        ? `You are a 4-panel manga (yonkoma) scriptwriter.
+
+Convert the provided kishotenketsu story into a 4-panel storyboard.
+
+Constraints:
+- Exactly 4 panels (setup, development, twist, punchline)
+- Each panel must include description (a concrete, drawable scene; ~50-120 characters) and dialogue (short; <= 50 characters)
+- Dialogue must be in English
+
+Output format:
+Return ONLY the following JSON array.
+[
+  {"panel": 1, "description": "...", "dialogue": "..."},
+  {"panel": 2, "description": "...", "dialogue": "..."},
+  {"panel": 3, "description": "...", "dialogue": "..."},
+  {"panel": 4, "description": "...", "dialogue": "..."}
+]`
+        : `あなたは4コマ漫画の脚本家です。与えられた起承転結ストーリーを4コマ漫画の絵コンテに変換してください。
 
 制約:
 - 必ず4つのパネル（起承転結）で構成する
 - 各パネルには description（シーンの説明）と dialogue（セリフ）を含める
 - description は視覚的に描画可能な具体的な場面を記述する（50-100文字）
 - dialogue は短く印象的なセリフにする（30文字以内）
-- 動画の核心的なメッセージを4コマで伝える
+- ストーリーの流れと核心を4コマで伝える
 
 出力形式:
 必ず以下のJSON形式のみを出力してください。他の説明は不要です。
@@ -332,30 +568,43 @@ async function generateStoryboard(
   {"panel": 4, "description": "...", "dialogue": "..."}
 ]`;
 
-    const userContent = `動画タイトル: ${movieSummary.title}
+    const partsText = params.story.parts
+        .map((p) => {
+            const label = p.part === 1 ? '起' : p.part === 2 ? '承' : p.part === 3 ? '転' : '結';
+            return `${label} [${p.startSec.toFixed(1)}-${p.endSec.toFixed(1)}s]: ${p.summary}`;
+        })
+        .join('\n');
 
-動画要約:
-${movieSummary.summary}
+    const userContent = lang === 'en'
+        ? `Title: ${params.story.title}
+Overall summary: ${params.story.overallSummary}
 
-${userPrompt ? `補足指示:\n${userPrompt}` : ''}`;
+Story parts:
+${partsText}
 
-    const response = await fetch(
-        `${GEMINI_API_BASE}/models/${model}:generateContent`,
-        {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'x-goog-api-key': apiKey,
+${params.userPrompt ? `Additional instructions:\n${params.userPrompt}` : ''}`
+        : `タイトル: ${params.story.title}
+全体要約: ${params.story.overallSummary}
+
+起承転結:
+${partsText}
+
+${params.userPrompt ? `補足指示:\n${params.userPrompt}` : ''}`;
+
+    const response = await fetch(`${GEMINI_API_BASE}/models/${params.model}:generateContent`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'x-goog-api-key': apiKey,
+        },
+        body: JSON.stringify({
+            contents: [{ role: 'user', parts: [{ text: systemPrompt + '\n\n' + userContent }] }],
+            generationConfig: {
+                temperature: 0.7,
+                maxOutputTokens: 2048,
             },
-            body: JSON.stringify({
-                contents: [{ role: 'user', parts: [{ text: systemPrompt + '\n\n' + userContent }] }],
-                generationConfig: {
-                    temperature: 0.7,
-                    maxOutputTokens: 2048,
-                },
-            }),
-        }
-    );
+        }),
+    });
 
     if (!response.ok) {
         throw new GeminiError(`絵コンテ生成エラー: ${response.status}`);
@@ -364,6 +613,94 @@ ${userPrompt ? `補足指示:\n${userPrompt}` : ''}`;
     const result = await response.json();
     const textContent = result.candidates?.[0]?.content?.parts?.[0]?.text;
 
+    if (!textContent) {
+        throw new GeminiError('絵コンテの生成結果を取得できませんでした');
+    }
+
+    return parseStoryboardJson(textContent);
+}
+
+async function generateStoryboardFromSummary(
+    apiKey: string,
+    params: {
+        movieSummary: MovieSummary;
+        userPrompt: string;
+        model: string;
+        language: string;
+    }
+): Promise<StoryboardPanel[]> {
+    const lang = normalizeLanguage(params.language);
+
+    const systemPrompt = lang === 'en'
+        ? `You are a 4-panel manga (yonkoma) scriptwriter.
+
+Convert the provided video summary into a 4-panel storyboard.
+
+Constraints:
+- Exactly 4 panels (setup, development, twist, punchline)
+- Each panel must include description (a concrete, drawable scene; ~50-120 characters) and dialogue (short; <= 50 characters)
+- Dialogue must be in English
+
+Output format:
+Return ONLY the following JSON array.
+[
+  {"panel": 1, "description": "...", "dialogue": "..."},
+  {"panel": 2, "description": "...", "dialogue": "..."},
+  {"panel": 3, "description": "...", "dialogue": "..."},
+  {"panel": 4, "description": "...", "dialogue": "..."}
+]`
+        : `あなたは4コマ漫画の脚本家です。与えられた動画の要約を4コマ漫画の絵コンテに変換してください。
+
+制約:
+- 必ず4つのパネル（起承転結）で構成する
+- 各パネルには description（シーンの説明）と dialogue（セリフ）を含める
+- description は視覚的に描画可能な具体的な場面を記述する（50-100文字）
+- dialogue は短く印象的なセリフにする（30文字以内）
+
+出力形式:
+必ず以下のJSON形式のみを出力してください。他の説明は不要です。
+[
+  {"panel": 1, "description": "...", "dialogue": "..."},
+  {"panel": 2, "description": "...", "dialogue": "..."},
+  {"panel": 3, "description": "...", "dialogue": "..."},
+  {"panel": 4, "description": "...", "dialogue": "..."}
+]`;
+
+    const userContent = lang === 'en'
+        ? `Title: ${params.movieSummary.title}
+
+Summary:
+${params.movieSummary.summary}
+
+${params.userPrompt ? `Additional instructions:\n${params.userPrompt}` : ''}`
+        : `動画タイトル: ${params.movieSummary.title}
+
+動画要約:
+${params.movieSummary.summary}
+
+${params.userPrompt ? `補足指示:\n${params.userPrompt}` : ''}`;
+
+    const response = await fetch(`${GEMINI_API_BASE}/models/${params.model}:generateContent`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'x-goog-api-key': apiKey,
+        },
+        body: JSON.stringify({
+            contents: [{ role: 'user', parts: [{ text: systemPrompt + '\n\n' + userContent }] }],
+            generationConfig: {
+                temperature: 0.7,
+                maxOutputTokens: 2048,
+            },
+        }),
+    });
+
+    if (!response.ok) {
+        throw new GeminiError(`絵コンテ生成エラー: ${response.status}`);
+    }
+
+    const result = await response.json();
+    const textContent = result.candidates?.[0]?.content?.parts?.[0]?.text;
     if (!textContent) {
         throw new GeminiError('絵コンテの生成結果を取得できませんでした');
     }
@@ -405,31 +742,13 @@ function parseStoryboardJson(text: string): StoryboardPanel[] {
 }
 
 // ===== Gemini: Image Generation =====
-async function generate4KomaImage(apiKey: string, storyboard: StoryboardPanel[], model: string): Promise<string> {
-    const panelDescriptions = storyboard.map((panel) =>
-        `【コマ${panel.panel}】\nシーン: ${panel.description}\nセリフ: 「${panel.dialogue}」`
-    ).join('\n\n');
-
-    const prompt = `日本の4コマ漫画を1枚の画像として生成してください。
-
-【レイアウト】
-- 縦に4コマ並べた構成（上から下へ1→2→3→4の順）
-- 各コマは同じサイズで、明確な枠線で区切る
-- アスペクト比は縦長（1:2程度）
-
-【スタイル】
-- シンプルでかわいい日本の4コマ漫画風
-- 明るく親しみやすいトーン
-- キャラクターはデフォルメされたかわいいスタイル
-- 背景はシンプルに
-
-【重要】
-- 各コマ内にセリフを吹き出しで表示すること
-- セリフは日本語で、読みやすいフォントで描くこと
-- 起承転結の流れを意識した構成
-
-【各コマの内容】
-${panelDescriptions}`;
+async function generate4KomaImage(
+    apiKey: string,
+    storyboard: StoryboardPanel[],
+    model: string,
+    language: string
+): Promise<string> {
+    const prompt = getImagePrompt(normalizeLanguage(language), storyboard);
 
     const response = await fetch(
         `${GEMINI_API_BASE}/models/${model}:generateContent`,
@@ -583,33 +902,78 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
         // 5. Fetch YouTube video info (title, author)
         const videoInfo = await fetchYouTubeVideoInfo(videoId);
 
-        // 6. Generate summary from video info with Gemini
-        const movieSummary = await generateVideoSummary(
-            apiKey,
-            videoInfo,
-            body.youtubeUrl,
-            body.modelSettings?.storyboardModel || DEFAULT_STORYBOARD_MODEL
-        );
+        // 6. Fetch transcript (timestamped, chronological). If unavailable, fall back to title/metadata.
+        let transcriptText: string | null = null;
+        try {
+            const transcriptLines = await fetchYouTubeTranscriptJson3(videoId, { language: body.language, timeoutMs: 10000 });
+            const formatted = formatTranscriptForPrompt(transcriptLines, { maxChars: 12000, maxLines: 120 });
+            transcriptText = formatted || null;
+        } catch {
+            transcriptText = null;
+        }
 
-        // 7. Generate storyboard from summary
-        const storyboard = await generateStoryboard(
-            apiKey,
-            movieSummary,
-            body.userPrompt || '',
-            body.modelSettings?.storyboardModel || DEFAULT_STORYBOARD_MODEL
-        );
+        let movieSummary: MovieSummary;
+        let storyboard: StoryboardPanel[];
 
-        // 8. Generate 4-koma image
+        if (transcriptText) {
+            // 7. Generate kishotenketsu story from transcript
+            const story = await generateKishotenketsuStory(apiKey, {
+                videoInfo,
+                youtubeUrl: body.youtubeUrl,
+                transcriptText,
+                userPrompt: body.userPrompt || '',
+                model: body.modelSettings?.storyboardModel || DEFAULT_STORYBOARD_MODEL,
+                language: body.language || 'ja',
+            });
+
+            movieSummary = {
+                title: videoInfo.title,
+                summary: story.overallSummary,
+            };
+
+            // 8. Generate storyboard from story
+            storyboard = await generateStoryboardFromStory(apiKey, {
+                story,
+                userPrompt: body.userPrompt || '',
+                model: body.modelSettings?.storyboardModel || DEFAULT_STORYBOARD_MODEL,
+                language: body.language || 'ja',
+            });
+        } else {
+            // 7. Fallback: infer summary from title/metadata
+            const inferred = await generateVideoSummaryFromVideoInfo(apiKey, {
+                videoInfo,
+                youtubeUrl: body.youtubeUrl,
+                userPrompt: body.userPrompt || '',
+                model: body.modelSettings?.storyboardModel || DEFAULT_STORYBOARD_MODEL,
+                language: body.language || 'ja',
+            });
+
+            movieSummary = {
+                title: videoInfo.title,
+                summary: inferred.summary,
+            };
+
+            // 8. Generate storyboard from inferred summary
+            storyboard = await generateStoryboardFromSummary(apiKey, {
+                movieSummary,
+                userPrompt: body.userPrompt || '',
+                model: body.modelSettings?.storyboardModel || DEFAULT_STORYBOARD_MODEL,
+                language: body.language || 'ja',
+            });
+        }
+
+        // 9. Generate 4-koma image
         const imageBase64 = await generate4KomaImage(
             apiKey,
             storyboard,
-            body.modelSettings?.imageModel || DEFAULT_IMAGE_MODEL
+            body.modelSettings?.imageModel || DEFAULT_IMAGE_MODEL,
+            body.language || 'ja'
         );
 
-        // 9. Log URL to KV (silent, non-blocking)
+        // 10. Log URL to KV (silent, non-blocking)
         await logUrlToKV(env.URL_LOGS, body.youtubeUrl, 'movie');
 
-        // 10. Return response
+        // 11. Return response
         const response: GenerateMovie4KomaResponse = { movieSummary, storyboard, imageBase64 };
         return jsonResponse(response, origin);
     } catch (error) {

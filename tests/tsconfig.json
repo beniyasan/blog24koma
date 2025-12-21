@@ -16,6 +16,7 @@
     "../functions/api/_cors.ts",
     "../functions/api/config.ts",
     "../functions/api/checkout.ts",
+    "../functions/api/generate-movie-4koma.ts",
     "../functions/api/portal.ts",
     "../functions/api/prompts.ts",
     "../functions/api/subscription.ts",

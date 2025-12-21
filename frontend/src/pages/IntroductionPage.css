@@ -1,0 +1,92 @@
+.intro-page {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-2xl);
+    padding: var(--spacing-lg) 0;
+}
+
+.intro-notice {
+    margin-top: var(--spacing-md);
+}
+
+.intro-section-title {
+    font-size: 1.25rem;
+    font-weight: 900;
+    margin-bottom: var(--spacing-md);
+}
+
+.intro-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: var(--spacing-md);
+}
+
+.intro-card {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-md);
+}
+
+.intro-card-title {
+    font-size: 1.1rem;
+    font-weight: 900;
+}
+
+.intro-card-desc {
+    color: var(--text-secondary);
+}
+
+.intro-card-note {
+    font-size: 0.875rem;
+    color: var(--text-muted);
+    margin-top: calc(var(--spacing-sm) * -1);
+}
+
+.intro-card-cta {
+    align-self: flex-start;
+}
+
+.intro-cta-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--spacing-md);
+}
+
+.intro-sample {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: var(--spacing-md);
+}
+
+@media (min-width: 900px) {
+    .intro-sample {
+        grid-template-columns: 1fr 1fr;
+        align-items: start;
+    }
+}
+
+.intro-sample-image {
+    width: 100%;
+    height: auto;
+    display: block;
+    background: var(--bg-input);
+    border: var(--border-thick) solid var(--border);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-comic-sm);
+}
+
+.intro-sample-caption {
+    font-weight: 700;
+    margin-bottom: var(--spacing-sm);
+}
+
+.intro-step-badge {
+    display: inline-block;
+    align-self: flex-start;
+    background: var(--accent-secondary);
+    border: 2px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 2px 10px;
+    font-weight: 900;
+    font-size: 0.8rem;
+}
