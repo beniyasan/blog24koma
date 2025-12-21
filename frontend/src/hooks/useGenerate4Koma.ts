@@ -58,6 +58,7 @@ export function useGenerate4Koma(): UseGenerate4KomaReturn {
                 return;
             }
 
+            window.gtag?.('event', 'success_generate');
             setResult(json as Generate4KomaResponse);
         } catch (err) {
             // Network error or other exceptions
