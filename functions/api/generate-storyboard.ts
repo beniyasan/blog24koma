@@ -203,14 +203,10 @@ ${userPrompt ? `補足指示:\n${userPrompt}` : ''}`;
 function parseStoryboardJson(text: string): GenerateStoryboardResponse {
     // Clean up the text - remove markdown code blocks if present
     let cleanText = text.trim();
-    if (cleanText.startsWith('```json')) {
-        cleanText = cleanText.slice(7);
-    } else if (cleanText.startsWith('```')) {
-        cleanText = cleanText.slice(3);
-    }
-    if (cleanText.endsWith('```')) {
-        cleanText = cleanText.slice(0, -3);
-    }
+    
+    // Remove markdown code block markers more aggressively
+    cleanText = cleanText.replace(/^```(?:json)?\s*/i, '');
+    cleanText = cleanText.replace(/\s*```\s*$/i, '');
     cleanText = cleanText.trim();
 
     // Try to parse as new format (object with characters and storyboard)
@@ -219,10 +215,11 @@ function parseStoryboardJson(text: string): GenerateStoryboardResponse {
         try {
             const parsed = JSON.parse(objectMatch[0]);
             // New enhanced format with characters and storyboard
-            if (parsed.storyboard && Array.isArray(parsed.storyboard) && parsed.storyboard.length === 4) {
+            if (parsed.storyboard && Array.isArray(parsed.storyboard)) {
                 return parseEnhancedFormat(parsed);
             }
-        } catch {
+        } catch (e) {
+            console.error('Failed to parse object JSON:', e);
             // Fall through to legacy format
         }
     }
@@ -343,8 +340,20 @@ function parseEnhancedFormat(parsed: { characters?: unknown[]; storyboard?: unkn
         };
     });
 
-    if (storyboard.length !== 4) {
-        throw new GeminiError('絵コンテは4つのパネルで構成される必要があります');
+    // Ensure we have exactly 4 panels
+    if (storyboard.length < 4) {
+        // Pad with empty panels if needed
+        while (storyboard.length < 4) {
+            const panelNum = storyboard.length + 1;
+            storyboard.push({
+                panel: panelNum as 1 | 2 | 3 | 4,
+                description: '',
+                dialogues: [],
+            });
+        }
+    } else if (storyboard.length > 4) {
+        // Truncate to 4 panels
+        storyboard.length = 4;
     }
 
     return { characters, storyboard };
