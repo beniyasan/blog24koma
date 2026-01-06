@@ -10,6 +10,8 @@ import { LoadingSpinner } from '../components/LoadingSpinner';
 import { ErrorDisplay } from '../components/ErrorDisplay';
 import { useGenerateStoryboard } from '../hooks/useGenerateStoryboard';
 import { useGenerateImageFromStoryboard } from '../hooks/useGenerateImageFromStoryboard';
+import { useCustomDemoStatus } from '../hooks/useCustomDemoStatus';
+import { useCustomImageDemoStatus } from '../hooks/useCustomImageDemoStatus';
 import { useModelSettings } from '../hooks/useModelSettings';
 import { useAuth } from '../hooks/useAuth';
 import { useLanguage } from '../hooks/useLanguage';
@@ -19,7 +21,6 @@ import type {
     StoryboardPanel,
     GenerationMode,
     ModelSettings,
-    DemoStatus,
     CustomStoryboardPanel,
     CustomDialogueLine,
     CustomCharacter,
@@ -82,12 +83,8 @@ export function CustomPage() {
         reset: resetImage,
     } = useGenerateImageFromStoryboard();
 
-    // Demo status (placeholder - would need a new hook for custom demo status)
-    const demoStatus: DemoStatus = {
-        remainingCount: 3,
-        maxCount: 3,
-        isAvailable: true,
-    };
+    const { status: storyboardDemoStatus, refresh: refreshStoryboardDemoStatus } = useCustomDemoStatus();
+    const { status: imageDemoStatus, refresh: refreshImageDemoStatus } = useCustomImageDemoStatus();
 
     const handleModeChange = (newMode: GenerationMode) => {
         setMode(newMode);
@@ -108,12 +105,16 @@ export function CustomPage() {
             mode,
         });
 
+        if (mode === 'demo') {
+            refreshStoryboardDemoStatus();
+        }
+
         if (result) {
             setStoryboard(result.storyboard);
             setCharacters(result.characters);
             setStep('edit');
         }
-    }, [inputText, userPrompt, modelSettings.storyboardModel, language, mode, generateStoryboard]);
+    }, [inputText, userPrompt, modelSettings.storyboardModel, language, mode, generateStoryboard, refreshStoryboardDemoStatus]);
 
     const handleGenerateImage = useCallback(async (apiKey?: string) => {
         analytics.track(EVENTS.CLICK_GENERATE, { mode, step: 'image' });
@@ -132,12 +133,16 @@ export function CustomPage() {
             mode,
         });
 
+        if (mode === 'demo') {
+            refreshImageDemoStatus();
+        }
+
         if (result) {
             setImageBase64(result);
             setStep('result');
             analytics.track(EVENTS.GENERATION_SUCCESS);
         }
-    }, [storyboard, characters, modelSettings.imageModel, language, mode, generateImage]);
+    }, [storyboard, characters, modelSettings.imageModel, language, mode, generateImage, refreshImageDemoStatus]);
 
     const handleStoryboardSubmit = () => {
         if (mode === 'byok') {
@@ -207,6 +212,9 @@ export function CustomPage() {
     const isLoading = isStoryboardLoading || isImageLoading;
     const error = storyboardError || imageError;
     const isInputValid = inputText.trim().length >= 10;
+    const isStoryboardDemoAvailable = mode !== 'demo' || storyboardDemoStatus?.isAvailable;
+    const canGenerateStoryboard = isInputValid && !isLoading && isStoryboardDemoAvailable;
+    const isImageDemoAvailable = mode !== 'demo' || imageDemoStatus?.isAvailable;
 
     return (
         <div className="app">
@@ -256,7 +264,7 @@ export function CustomPage() {
 
                             {mode === 'demo' && (
                                 <DemoLimitDisplay
-                                    status={demoStatus}
+                                    status={storyboardDemoStatus}
                                     onSwitchToByok={() => handleModeChange('byok')}
                                 />
                             )}
@@ -323,8 +331,8 @@ export function CustomPage() {
 
                                 <button
                                     type="button"
-                                    className={`submit-btn ${isInputValid && !isLoading ? 'active' : 'disabled'}`}
-                                    disabled={!isInputValid || isLoading}
+                                    className={`submit-btn ${canGenerateStoryboard ? 'active' : 'disabled'}`}
+                                    disabled={!canGenerateStoryboard}
                                     onClick={handleStoryboardSubmit}
                                 >
                                     <span>{t(language, 'custom.input.generate')}</span>
@@ -337,6 +345,12 @@ export function CustomPage() {
                 {/* Step 2: Edit Storyboard */}
                 {step === 'edit' && !isLoading && (
                     <div className="custom-edit-container">
+                        {mode === 'demo' && (
+                            <DemoLimitDisplay
+                                status={imageDemoStatus}
+                                onSwitchToByok={() => handleModeChange('byok')}
+                            />
+                        )}
                         <div className="custom-edit-layout">
                             <div className="custom-edit-main">
                                 <StoryboardEditor
@@ -366,9 +380,9 @@ export function CustomPage() {
                             </button>
                             <button
                                 type="button"
-                                className="submit-btn active"
+                                className={`submit-btn ${!isLoading && isImageDemoAvailable ? 'active' : 'disabled'}`}
                                 onClick={handleImageSubmit}
-                                disabled={isLoading}
+                                disabled={isLoading || !isImageDemoAvailable}
                             >
                                 <span>{t(language, 'custom.edit.generate')}</span>
                             </button>
