@@ -261,8 +261,10 @@ function parseStoryboardJson(text: string): GenerateStoryboardResponse {
     }
 
     if (!parsed || !Array.isArray(parsed) || parsed.length !== 4) {
-        console.error('Failed to parse storyboard. Raw text:', text.substring(0, 500));
-        throw new GeminiError('絵コンテのJSONを取得できませんでした。再試行してください。');
+        console.error('Failed to parse storyboard. Raw text:', text.substring(0, 1000));
+        // Include a snippet of the raw output in the error for debugging
+        const preview = text.substring(0, 200).replace(/\n/g, ' ');
+        throw new GeminiError(`絵コンテのJSONを取得できませんでした。再試行してください。(Debug: ${preview}...)`);
     }
 
     // Convert legacy format to new format
