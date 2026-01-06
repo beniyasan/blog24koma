@@ -44,6 +44,7 @@ export function InputForm({
 
     const handleSubmit = (e: FormEvent) => {
         e.preventDefault();
+        window.gtag?.('event', 'start_generate');
         analytics.track(EVENTS.CLICK_GENERATE, { mode });
 
         if (mode === 'byok') {

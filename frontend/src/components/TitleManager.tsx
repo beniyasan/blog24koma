@@ -6,6 +6,8 @@ import { t } from '../i18n';
 function getTitleKey(pathname: string): string {
     if (pathname === '/' || pathname === '') return 'title.blog';
     if (pathname.startsWith('/movie')) return 'title.movie';
+    if (pathname.startsWith('/custom')) return 'title.custom';
+    if (pathname.startsWith('/introduction')) return 'title.introduction';
     if (pathname.startsWith('/pricing')) return 'title.pricing';
     if (pathname.startsWith('/howto')) return 'title.howto';
     if (pathname.startsWith('/subscription/success')) return 'title.subscriptionSuccess';
