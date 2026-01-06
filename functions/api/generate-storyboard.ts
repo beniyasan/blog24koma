@@ -171,19 +171,21 @@ ${inputText}
 
 ${userPrompt ? `補足指示:\n${userPrompt}` : ''}`;
 
+    const requestBody = {
+        contents: [{ role: 'user', parts: [{ text: systemPrompt + '\n\n' + userContent }] }],
+        generationConfig: {
+            temperature: 0.2,
+            maxOutputTokens: 4096,
+        },
+    };
+
     const response = await fetch(`${GEMINI_API_BASE}/models/${model}:generateContent`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
             'x-goog-api-key': apiKey,
         },
-        body: JSON.stringify({
-            contents: [{ role: 'user', parts: [{ text: systemPrompt + '\n\n' + userContent }] }],
-            generationConfig: {
-                temperature: 0.7,
-                maxOutputTokens: 2048,
-            },
-        }),
+        body: JSON.stringify(requestBody),
     });
 
     if (!response.ok) {
@@ -197,172 +199,432 @@ ${userPrompt ? `補足指示:\n${userPrompt}` : ''}`;
         throw new GeminiError('絵コンテの生成結果を取得できませんでした');
     }
 
-    return parseStoryboardJson(textContent);
+    try {
+        return parseStoryboardJson(textContent);
+    } catch (error) {
+        // Retry once with deterministic settings if the model returned invalid JSON.
+        console.error('Storyboard JSON parse failed, retrying once');
+        const retryResponse = await fetch(`${GEMINI_API_BASE}/models/${model}:generateContent`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'x-goog-api-key': apiKey,
+            },
+            body: JSON.stringify({
+                ...requestBody,
+                generationConfig: {
+                    temperature: 0,
+                    maxOutputTokens: 4096,
+                },
+            }),
+        });
+
+        if (!retryResponse.ok) {
+            throw error;
+        }
+
+        const retryResult = await retryResponse.json();
+        const retryTextContent = retryResult.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (!retryTextContent) {
+            throw error;
+        }
+        return parseStoryboardJson(retryTextContent);
+    }
 }
 
-function parseStoryboardJson(text: string): GenerateStoryboardResponse {
-    // Clean up the text - remove markdown code blocks if present
-    let cleanText = text.trim();
-    
-    // Remove markdown code block markers more aggressively
-    // Handle various formats: ```json, ``` json, ```JSON, etc.
-    cleanText = cleanText.replace(/^`{3,}\s*(?:json)?\s*/gi, '');
-    cleanText = cleanText.replace(/\s*`{3,}\s*$/gi, '');
-    cleanText = cleanText.trim();
+function stripMarkdownCodeFences(text: string): string {
+    // Remove fenced code blocks while keeping their contents.
+    // Handles: ```json ... ```, ``` ... ```
+    return text
+        .replace(/```\s*(?:json)?\s*\n([\s\S]*?)\n```/gi, '$1')
+        .replace(/```/g, '');
+}
 
-    // Try to parse the whole thing first if it looks like valid JSON
-    try {
-        const directParsed = JSON.parse(cleanText);
-        if (directParsed.storyboard && Array.isArray(directParsed.storyboard)) {
-            return parseEnhancedFormat(directParsed);
-        }
-    } catch {
-        // Fall through to regex extraction
-    }
+function normalizeJsonText(text: string): string {
+    // Minimal repairs for common model formatting mistakes.
+    return text
+        .replace(/^\uFEFF/, '')
+        .replace(/[“”]/g, '"')
+        .replace(/[‘’]/g, "'")
+        .replace(/,\s*([}\]])/g, '$1')
+        .trim();
+}
 
-    // Try to parse as new format (object with characters and storyboard)
-    const objectMatch = cleanText.match(/\{[\s\S]*\}/);
-    if (objectMatch) {
-        try {
-            const parsed = JSON.parse(objectMatch[0]);
-            if (parsed.storyboard && Array.isArray(parsed.storyboard)) {
-                return parseEnhancedFormat(parsed);
-            }
-        } catch {
-            // Fall through to legacy format
-        }
-    }
+function quoteUnquotedKeys(text: string): string {
+    let out = '';
+    let inString = false;
+    let escape = false;
 
-    // Legacy format: array of panels
-    // Find array that looks like storyboard panels
-    const arrayMatches = cleanText.match(/\[[\s\S]*?\]/g);
-    let parsed: unknown[] | null = null;
-    
-    if (arrayMatches) {
-        for (const match of arrayMatches) {
-            try {
-                const arr = JSON.parse(match);
-                if (Array.isArray(arr) && arr.length === 4 && arr[0]?.panel !== undefined) {
-                    parsed = arr;
-                    break;
-                }
-            } catch {
+    for (let i = 0; i < text.length; i++) {
+        const ch = text[i];
+
+        if (inString) {
+            out += ch;
+            if (escape) {
+                escape = false;
                 continue;
             }
-        }
-    }
-
-    // If no array found, try parsing the whole cleaned text
-    if (!parsed) {
-        try {
-            const fullParsed = JSON.parse(cleanText);
-            if (Array.isArray(fullParsed) && fullParsed.length === 4) {
-                parsed = fullParsed;
-            } else if (fullParsed.storyboard && Array.isArray(fullParsed.storyboard)) {
-                return parseEnhancedFormat(fullParsed);
+            if (ch === '\\') {
+                escape = true;
+                continue;
             }
-        } catch {
-            // Continue to error
+            if (ch === '"') {
+                inString = false;
+            }
+            continue;
+        }
+
+        if (ch === '"') {
+            inString = true;
+            out += ch;
+            continue;
+        }
+
+        if (/[A-Za-z_]/.test(ch)) {
+            let j = i - 1;
+            while (j >= 0 && /\s/.test(text[j])) j--;
+            const prev = j >= 0 ? text[j] : '';
+
+            if (prev === '{' || prev === ',') {
+                let k = i;
+                while (k < text.length && /[A-Za-z0-9_]/.test(text[k])) k++;
+                const ident = text.slice(i, k);
+
+                let m = k;
+                while (m < text.length && /\s/.test(text[m])) m++;
+                if (m < text.length && text[m] === ':') {
+                    out += `"${ident}"`;
+                    i = k - 1;
+                    continue;
+                }
+            }
+        }
+
+        out += ch;
+    }
+
+    return out;
+}
+
+function convertSingleQuotedStrings(text: string): string {
+    let out = '';
+    let inDouble = false;
+    let inSingle = false;
+    let escape = false;
+
+    for (let i = 0; i < text.length; i++) {
+        const ch = text[i];
+
+        if (inDouble) {
+            out += ch;
+            if (escape) {
+                escape = false;
+                continue;
+            }
+            if (ch === '\\') {
+                escape = true;
+                continue;
+            }
+            if (ch === '"') {
+                inDouble = false;
+            }
+            continue;
+        }
+
+        if (inSingle) {
+            if (escape) {
+                out += ch;
+                escape = false;
+                continue;
+            }
+            if (ch === '\\') {
+                out += ch;
+                escape = true;
+                continue;
+            }
+            if (ch === "'") {
+                out += '"';
+                inSingle = false;
+                continue;
+            }
+            if (ch === '"') {
+                // Escape embedded double-quotes when converting to JSON strings.
+                out += '\\"';
+                continue;
+            }
+            out += ch;
+            continue;
+        }
+
+        if (ch === '"') {
+            inDouble = true;
+            out += ch;
+            continue;
+        }
+
+        if (ch === "'") {
+            inSingle = true;
+            out += '"';
+            continue;
+        }
+
+        out += ch;
+    }
+
+    return out;
+}
+
+function repairJsonLike(text: string): string {
+    // Apply only after JSON.parse fails.
+    return normalizeJsonText(convertSingleQuotedStrings(quoteUnquotedKeys(text)));
+}
+
+function tryJsonParse(text: string): unknown | null {
+    try {
+        return JSON.parse(text);
+    } catch {
+        return null;
+    }
+}
+
+function extractFirstBalancedJson(text: string, openChar: '{' | '['): string | null {
+    const closeChar = openChar === '{' ? '}' : ']';
+
+    let startIndex = text.indexOf(openChar);
+    while (startIndex !== -1) {
+        let inString = false;
+        let escape = false;
+        let depth = 0;
+
+        for (let i = startIndex; i < text.length; i++) {
+            const ch = text[i];
+            if (inString) {
+                if (escape) {
+                    escape = false;
+                    continue;
+                }
+                if (ch === '\\') {
+                    escape = true;
+                    continue;
+                }
+                if (ch === '"') {
+                    inString = false;
+                }
+                continue;
+            }
+
+            if (ch === '"') {
+                inString = true;
+                continue;
+            }
+
+            if (ch === openChar) {
+                depth++;
+            } else if (ch === closeChar) {
+                depth--;
+                if (depth === 0) {
+                    return text.slice(startIndex, i + 1);
+                }
+            }
+        }
+
+        startIndex = text.indexOf(openChar, startIndex + 1);
+    }
+    return null;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+    return typeof value === 'object' && value !== null;
+}
+
+function coerceCharacters(value: unknown): CharacterInfo[] {
+    if (!Array.isArray(value)) return [];
+    return value
+        .map((c: unknown) => {
+            const char = isRecord(c) ? c : {};
+            return {
+                name: typeof char.name === 'string' ? char.name.trim() : '',
+                description: typeof char.description === 'string'
+                    ? char.description.trim()
+                    : (typeof char.desc === 'string' ? char.desc.trim() : ''),
+            };
+        })
+        .filter((c) => c.name);
+}
+
+function coerceStoryboardValueToArray(value: unknown): unknown[] | null {
+    if (Array.isArray(value)) return value;
+    if (!isRecord(value)) return null;
+
+    const ordered: unknown[] = [];
+    for (let i = 1; i <= 4; i++) {
+        const directKey = String(i);
+        const panelKey = `panel${i}`;
+        const shortKey = `p${i}`;
+
+        if (directKey in value) {
+            ordered.push(value[directKey]);
+        } else if (panelKey in value) {
+            ordered.push(value[panelKey]);
+        } else if (shortKey in value) {
+            ordered.push(value[shortKey]);
         }
     }
 
-    if (!parsed || !Array.isArray(parsed) || parsed.length !== 4) {
-        throw new GeminiError('絵コンテのJSONを取得できませんでした。再試行してください。');
-    }
+    return ordered.length > 0 ? ordered : null;
+}
 
-    // Convert legacy format to new format
-    const storyboard: EnhancedStoryboardPanel[] = parsed.map((panel, index) => {
-        const expectedPanel = index + 1;
-        if (panel.panel !== expectedPanel) {
-            panel.panel = expectedPanel;
-        }
-        // Handle both old format (dialogue) and new format (dialogues)
-        let dialogues: DialogueLine[] = [];
-        if (Array.isArray(panel.dialogues)) {
-            dialogues = panel.dialogues.map((d: unknown) => {
-                const dl = d as Record<string, unknown>;
+function looksLikeStoryboardPanel(value: unknown): boolean {
+    if (!isRecord(value)) return false;
+    return (
+        'panel' in value ||
+        'description' in value ||
+        'scene' in value ||
+        'dialogue' in value ||
+        'dialogues' in value
+    );
+}
+
+function parseDialogues(value: unknown): DialogueLine[] {
+    if (Array.isArray(value)) {
+        return value
+            .map((d: unknown) => {
+                const dl = isRecord(d) ? d : {};
                 return {
                     speaker: typeof dl.speaker === 'string' ? dl.speaker.trim() : '',
                     text: typeof dl.text === 'string' ? dl.text.trim() : '',
                 };
-            }).filter((d: DialogueLine) => d.text);
-        } else if (typeof panel.dialogue === 'string' && panel.dialogue) {
-            dialogues = [{ speaker: '', text: panel.dialogue }];
-        }
-        return {
-            panel: expectedPanel as 1 | 2 | 3 | 4,
-            description: typeof panel.description === 'string' ? panel.description : '',
-            dialogues,
-        };
-    });
-
-    // Try to extract characters from the original parsed object if present
-    let characters: CharacterInfo[] = [];
-    if (objectMatch) {
-        try {
-            const fullParsed = JSON.parse(objectMatch[0]);
-            if (Array.isArray(fullParsed.characters)) {
-                characters = fullParsed.characters.map((c: unknown) => {
-                    const char = c as Record<string, unknown>;
-                    return {
-                        name: typeof char.name === 'string' ? char.name.trim() : '',
-                        description: typeof char.description === 'string' ? char.description.trim() : '',
-                    };
-                }).filter((c: CharacterInfo) => c.name);
-            }
-        } catch {
-            // Ignore character parsing errors
-        }
+            })
+            .filter((d) => d.text);
     }
 
-    return { characters, storyboard };
+    if (typeof value === 'string') {
+        // Sometimes the model returns dialogues as a single string; split into lines.
+        return value
+            .split(/\r?\n/)
+            .map((line) => line.trim())
+            .filter(Boolean)
+            .slice(0, 3)
+            .map((line) => {
+                const idx = line.indexOf(':');
+                if (idx > 0) {
+                    return {
+                        speaker: line.slice(0, idx).trim(),
+                        text: line.slice(idx + 1).trim(),
+                    };
+                }
+                return { speaker: '', text: line };
+            })
+            .filter((d) => d.text);
+    }
+
+    return [];
 }
 
-function parseEnhancedFormat(parsed: { characters?: unknown[]; storyboard?: unknown[] }): GenerateStoryboardResponse {
-    const characters: CharacterInfo[] = (parsed.characters || []).map((c: unknown) => {
-        const char = c as Record<string, unknown>;
-        return {
-            name: typeof char.name === 'string' ? char.name.trim() : '',
-            description: typeof char.description === 'string' ? char.description.trim() : '',
-        };
-    }).filter(c => c.name);
+function coerceStoryboardPanels(value: unknown[]): EnhancedStoryboardPanel[] | null {
+    if (!value.some(looksLikeStoryboardPanel)) return null;
 
-    const storyboard: EnhancedStoryboardPanel[] = (parsed.storyboard || []).map((panel: unknown, index: number) => {
-        const p = panel as Record<string, unknown>;
+    const panels: EnhancedStoryboardPanel[] = value.map((panel: unknown, index: number) => {
+        const p = isRecord(panel) ? panel : {};
         const expectedPanel = index + 1;
-        const dialoguesRaw = Array.isArray(p.dialogues) ? p.dialogues : [];
-        const dialogues: DialogueLine[] = dialoguesRaw.map((d: unknown) => {
-            const dl = d as Record<string, unknown>;
-            return {
-                speaker: typeof dl.speaker === 'string' ? dl.speaker.trim() : '',
-                text: typeof dl.text === 'string' ? dl.text.trim() : '',
-            };
-        }).filter(d => d.text);
+
+        const description =
+            typeof p.description === 'string' ? p.description :
+                (typeof p.scene === 'string' ? p.scene : '');
+
+        let dialogues: DialogueLine[] = [];
+        if ('dialogues' in p) {
+            dialogues = parseDialogues(p.dialogues);
+        }
+
+        if (dialogues.length === 0 && typeof p.dialogue === 'string' && p.dialogue.trim()) {
+            dialogues = [{ speaker: '', text: p.dialogue.trim() }];
+        }
 
         return {
             panel: expectedPanel as 1 | 2 | 3 | 4,
-            description: typeof p.description === 'string' ? p.description : '',
+            description,
             dialogues,
         };
     });
 
-    // Ensure we have exactly 4 panels
-    if (storyboard.length < 4) {
-        // Pad with empty panels if needed
-        while (storyboard.length < 4) {
-            const panelNum = storyboard.length + 1;
-            storyboard.push({
+    if (panels.length < 4) {
+        while (panels.length < 4) {
+            const panelNum = panels.length + 1;
+            panels.push({
                 panel: panelNum as 1 | 2 | 3 | 4,
                 description: '',
                 dialogues: [],
             });
         }
-    } else if (storyboard.length > 4) {
-        // Truncate to 4 panels
-        storyboard.length = 4;
+    } else if (panels.length > 4) {
+        panels.length = 4;
     }
 
+    return panels;
+}
+
+function coerceStoryboardResponse(parsed: unknown): GenerateStoryboardResponse | null {
+    if (Array.isArray(parsed)) {
+        const storyboard = coerceStoryboardPanels(parsed);
+        if (!storyboard) return null;
+        return { characters: [], storyboard };
+    }
+
+    if (!isRecord(parsed)) return null;
+
+    const characters = coerceCharacters(parsed.characters ?? parsed['登場人物']);
+
+    const storyboardRaw =
+        parsed.storyboard ??
+        parsed['絵コンテ'] ??
+        parsed.panels ??
+        parsed.frames;
+
+    const storyboardArray = coerceStoryboardValueToArray(storyboardRaw) ||
+        (Array.isArray(storyboardRaw) ? storyboardRaw : null);
+
+    if (!storyboardArray) return null;
+
+    const storyboard = coerceStoryboardPanels(storyboardArray);
+    if (!storyboard) return null;
+
     return { characters, storyboard };
+}
+
+function parseStoryboardJson(text: string): GenerateStoryboardResponse {
+    const cleanText = normalizeJsonText(stripMarkdownCodeFences(text));
+
+    const candidates: string[] = [cleanText];
+
+    const balancedObject = extractFirstBalancedJson(cleanText, '{');
+    if (balancedObject) candidates.push(balancedObject);
+
+    const balancedArray = extractFirstBalancedJson(cleanText, '[');
+    if (balancedArray) candidates.push(balancedArray);
+
+    const objectMatch = cleanText.match(/\{[\s\S]*\}/);
+    if (objectMatch) candidates.push(objectMatch[0]);
+
+    const arrayMatches = cleanText.match(/\[[\s\S]*?\]/g);
+    if (arrayMatches) candidates.push(...arrayMatches);
+
+    for (const candidate of candidates) {
+        const direct = tryJsonParse(candidate) ?? tryJsonParse(normalizeJsonText(candidate));
+        if (direct) {
+            const coerced = coerceStoryboardResponse(direct);
+            if (coerced) return coerced;
+            continue;
+        }
+
+        const repaired = tryJsonParse(repairJsonLike(candidate));
+        if (repaired) {
+            const coerced = coerceStoryboardResponse(repaired);
+            if (coerced) return coerced;
+        }
+    }
+
+    throw new GeminiError('絵コンテのJSONを取得できませんでした。再試行してください。');
 }
 
 // ===== Request Handlers =====
