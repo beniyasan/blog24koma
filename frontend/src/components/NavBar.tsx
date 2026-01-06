@@ -4,7 +4,7 @@ import { useRuntimeConfig } from '../hooks/useRuntimeConfig';
 import { useLanguage } from '../hooks/useLanguage';
 import { t } from '../i18n';
 
-type NavPath = '/' | '/movie' | '/introduction' | '/pricing' | '/howto';
+type NavPath = '/' | '/movie' | '/custom' | '/introduction' | '/pricing' | '/howto';
 
 interface NavBarProps {
     active?: NavPath;
@@ -19,6 +19,7 @@ export function NavBar({ active }: NavBarProps) {
         <nav className="nav-links">
             <Link to="/" className={`nav-link ${active === '/' ? 'active' : ''}`}>{t(language, 'nav.blog')}</Link>
             <Link to="/movie" className={`nav-link ${active === '/movie' ? 'active' : ''}`}>{t(language, 'nav.movie')}</Link>
+            <Link to="/custom" className={`nav-link ${active === '/custom' ? 'active' : ''}`}>{t(language, 'nav.custom')}</Link>
             <Link to="/introduction" className={`nav-link ${active === '/introduction' ? 'active' : ''}`}>{t(language, 'nav.introduction')}</Link>
             {config.billingEnabled && (
                 <Link to="/pricing" className={`nav-link ${active === '/pricing' ? 'active' : ''}`}>{t(language, 'nav.pricing')}</Link>
