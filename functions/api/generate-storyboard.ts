@@ -205,9 +205,23 @@ function parseStoryboardJson(text: string): GenerateStoryboardResponse {
     let cleanText = text.trim();
     
     // Remove markdown code block markers more aggressively
-    cleanText = cleanText.replace(/^```(?:json)?\s*/i, '');
-    cleanText = cleanText.replace(/\s*```\s*$/i, '');
+    // Handle various formats: ```json, ``` json, ```JSON, etc.
+    cleanText = cleanText.replace(/^`{3,}\s*(?:json)?\s*/gi, '');
+    cleanText = cleanText.replace(/\s*`{3,}\s*$/gi, '');
     cleanText = cleanText.trim();
+
+    console.log('Cleaned text (first 300 chars):', cleanText.substring(0, 300));
+
+    // Try to parse the whole thing first if it looks like valid JSON
+    try {
+        const directParsed = JSON.parse(cleanText);
+        if (directParsed.storyboard && Array.isArray(directParsed.storyboard)) {
+            console.log('Direct parse succeeded');
+            return parseEnhancedFormat(directParsed);
+        }
+    } catch (e) {
+        console.log('Direct parse failed, trying regex extraction');
+    }
 
     // Try to parse as new format (object with characters and storyboard)
     const objectMatch = cleanText.match(/\{[\s\S]*\}/);
@@ -216,6 +230,7 @@ function parseStoryboardJson(text: string): GenerateStoryboardResponse {
             const parsed = JSON.parse(objectMatch[0]);
             // New enhanced format with characters and storyboard
             if (parsed.storyboard && Array.isArray(parsed.storyboard)) {
+                console.log('Object match parse succeeded');
                 return parseEnhancedFormat(parsed);
             }
         } catch (e) {
