@@ -206,7 +206,8 @@ function parseStoryboardJson(text: string): GenerateStoryboardResponse {
     if (objectMatch) {
         try {
             const parsed = JSON.parse(objectMatch[0]);
-            if (parsed.characters && parsed.storyboard && Array.isArray(parsed.storyboard)) {
+            // New enhanced format with characters and storyboard
+            if (parsed.storyboard && Array.isArray(parsed.storyboard) && parsed.storyboard.length === 4) {
                 return parseEnhancedFormat(parsed);
             }
         } catch {
@@ -215,7 +216,7 @@ function parseStoryboardJson(text: string): GenerateStoryboardResponse {
     }
 
     // Legacy format: array of panels with dialogue string
-    const arrayMatch = text.match(/\[[\s\S]*?\]/);
+    const arrayMatch = text.match(/\[[\s\S]*\]/);
     if (!arrayMatch) {
         throw new GeminiError('絵コンテのJSONを取得できませんでした');
     }
@@ -237,15 +238,46 @@ function parseStoryboardJson(text: string): GenerateStoryboardResponse {
         if (panel.panel !== expectedPanel) {
             panel.panel = expectedPanel;
         }
-        const dialogue = typeof panel.dialogue === 'string' ? panel.dialogue : '';
+        // Handle both old format (dialogue) and new format (dialogues)
+        let dialogues: DialogueLine[] = [];
+        if (Array.isArray(panel.dialogues)) {
+            dialogues = panel.dialogues.map((d: unknown) => {
+                const dl = d as Record<string, unknown>;
+                return {
+                    speaker: typeof dl.speaker === 'string' ? dl.speaker.trim() : '',
+                    text: typeof dl.text === 'string' ? dl.text.trim() : '',
+                };
+            }).filter((d: DialogueLine) => d.text);
+        } else if (typeof panel.dialogue === 'string' && panel.dialogue) {
+            dialogues = [{ speaker: '', text: panel.dialogue }];
+        }
         return {
-            panel: panel.panel as 1 | 2 | 3 | 4,
+            panel: expectedPanel as 1 | 2 | 3 | 4,
             description: typeof panel.description === 'string' ? panel.description : '',
-            dialogues: dialogue ? [{ speaker: '', text: dialogue }] : [],
+            dialogues,
         };
     });
 
-    return { characters: [], storyboard };
+    // Try to extract characters from the original parsed object if present
+    let characters: CharacterInfo[] = [];
+    if (objectMatch) {
+        try {
+            const fullParsed = JSON.parse(objectMatch[0]);
+            if (Array.isArray(fullParsed.characters)) {
+                characters = fullParsed.characters.map((c: unknown) => {
+                    const char = c as Record<string, unknown>;
+                    return {
+                        name: typeof char.name === 'string' ? char.name.trim() : '',
+                        description: typeof char.description === 'string' ? char.description.trim() : '',
+                    };
+                }).filter((c: CharacterInfo) => c.name);
+            }
+        } catch {
+            // Ignore character parsing errors
+        }
+    }
+
+    return { characters, storyboard };
 }
 
 function parseEnhancedFormat(parsed: { characters?: unknown[]; storyboard?: unknown[] }): GenerateStoryboardResponse {
