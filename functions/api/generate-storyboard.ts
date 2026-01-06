@@ -213,14 +213,17 @@ function parseStoryboardJson(text: string): GenerateStoryboardResponse {
     console.log('Cleaned text (first 300 chars):', cleanText.substring(0, 300));
 
     // Try to parse the whole thing first if it looks like valid JSON
+    let parseError = '';
     try {
         const directParsed = JSON.parse(cleanText);
         if (directParsed.storyboard && Array.isArray(directParsed.storyboard)) {
             console.log('Direct parse succeeded');
             return parseEnhancedFormat(directParsed);
         }
+        parseError = 'Parsed but no storyboard array found';
     } catch (e) {
-        console.log('Direct parse failed, trying regex extraction');
+        parseError = `Direct parse error: ${e instanceof Error ? e.message : String(e)}`;
+        console.log(parseError);
     }
 
     // Try to parse as new format (object with characters and storyboard)
@@ -233,10 +236,14 @@ function parseStoryboardJson(text: string): GenerateStoryboardResponse {
                 console.log('Object match parse succeeded');
                 return parseEnhancedFormat(parsed);
             }
+            parseError += '; Object match: no storyboard array';
         } catch (e) {
+            parseError += `; Object match error: ${e instanceof Error ? e.message : String(e)}`;
             console.error('Failed to parse object JSON:', e);
             // Fall through to legacy format
         }
+    } else {
+        parseError += '; No object match found';
     }
 
     // Legacy format: array of panels
@@ -274,9 +281,9 @@ function parseStoryboardJson(text: string): GenerateStoryboardResponse {
 
     if (!parsed || !Array.isArray(parsed) || parsed.length !== 4) {
         console.error('Failed to parse storyboard. Raw text:', text.substring(0, 1000));
-        // Include a snippet of the raw output in the error for debugging
-        const preview = text.substring(0, 200).replace(/\n/g, ' ');
-        throw new GeminiError(`絵コンテのJSONを取得できませんでした。再試行してください。(Debug: ${preview}...)`);
+        // Include parse error and snippet in error message
+        const preview = cleanText.substring(0, 150).replace(/\n/g, ' ');
+        throw new GeminiError(`絵コンテのJSONを取得できませんでした。(${parseError}) [${preview}...]`);
     }
 
     // Convert legacy format to new format
