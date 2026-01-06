@@ -201,8 +201,20 @@ ${userPrompt ? `補足指示:\n${userPrompt}` : ''}`;
 }
 
 function parseStoryboardJson(text: string): GenerateStoryboardResponse {
+    // Clean up the text - remove markdown code blocks if present
+    let cleanText = text.trim();
+    if (cleanText.startsWith('```json')) {
+        cleanText = cleanText.slice(7);
+    } else if (cleanText.startsWith('```')) {
+        cleanText = cleanText.slice(3);
+    }
+    if (cleanText.endsWith('```')) {
+        cleanText = cleanText.slice(0, -3);
+    }
+    cleanText = cleanText.trim();
+
     // Try to parse as new format (object with characters and storyboard)
-    const objectMatch = text.match(/\{[\s\S]*\}/);
+    const objectMatch = cleanText.match(/\{[\s\S]*\}/);
     if (objectMatch) {
         try {
             const parsed = JSON.parse(objectMatch[0]);
@@ -215,21 +227,42 @@ function parseStoryboardJson(text: string): GenerateStoryboardResponse {
         }
     }
 
-    // Legacy format: array of panels with dialogue string
-    const arrayMatch = text.match(/\[[\s\S]*\]/);
-    if (!arrayMatch) {
-        throw new GeminiError('絵コンテのJSONを取得できませんでした');
+    // Legacy format: array of panels
+    // Find array that looks like storyboard panels
+    const arrayMatches = cleanText.match(/\[[\s\S]*?\]/g);
+    let parsed: unknown[] | null = null;
+    
+    if (arrayMatches) {
+        for (const match of arrayMatches) {
+            try {
+                const arr = JSON.parse(match);
+                if (Array.isArray(arr) && arr.length === 4 && arr[0]?.panel !== undefined) {
+                    parsed = arr;
+                    break;
+                }
+            } catch {
+                continue;
+            }
+        }
     }
 
-    let parsed;
-    try {
-        parsed = JSON.parse(arrayMatch[0]);
-    } catch {
-        throw new GeminiError('絵コンテのJSONのパースに失敗しました');
+    // If no array found, try parsing the whole cleaned text
+    if (!parsed) {
+        try {
+            const fullParsed = JSON.parse(cleanText);
+            if (Array.isArray(fullParsed) && fullParsed.length === 4) {
+                parsed = fullParsed;
+            } else if (fullParsed.storyboard && Array.isArray(fullParsed.storyboard)) {
+                return parseEnhancedFormat(fullParsed);
+            }
+        } catch {
+            // Continue to error
+        }
     }
 
-    if (!Array.isArray(parsed) || parsed.length !== 4) {
-        throw new GeminiError('絵コンテは4つのパネルで構成される必要があります');
+    if (!parsed || !Array.isArray(parsed) || parsed.length !== 4) {
+        console.error('Failed to parse storyboard. Raw text:', text.substring(0, 500));
+        throw new GeminiError('絵コンテのJSONを取得できませんでした。再試行してください。');
     }
 
     // Convert legacy format to new format
