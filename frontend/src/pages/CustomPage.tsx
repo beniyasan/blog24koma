@@ -28,27 +28,12 @@ import './CustomPage.css';
 
 type CustomStep = 'input' | 'edit' | 'result';
 
-function makeId(): string {
-    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-        return crypto.randomUUID();
-    }
-    return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
-}
-
 function buildDialogueText(dialogues: CustomDialogueLine[]): string {
     return dialogues
         .map((d) => ({ speaker: d.speaker.trim(), text: d.text.trim() }))
         .filter((d) => d.text)
         .map((d) => (d.speaker ? `${d.speaker}: ${d.text}` : d.text))
         .join('\n');
-}
-
-function toCustomStoryboard(panels: StoryboardPanel[]): CustomStoryboardPanel[] {
-    return panels.map((p) => ({
-        panel: p.panel,
-        description: p.description,
-        dialogues: [{ id: makeId(), speaker: '', text: p.dialogue }],
-    }));
 }
 
 function toApiStoryboard(panels: CustomStoryboardPanel[]): StoryboardPanel[] {
@@ -124,7 +109,8 @@ export function CustomPage() {
         });
 
         if (result) {
-            setStoryboard(toCustomStoryboard(result));
+            setStoryboard(result.storyboard);
+            setCharacters(result.characters);
             setStep('edit');
         }
     }, [inputText, userPrompt, modelSettings.storyboardModel, language, mode, generateStoryboard]);

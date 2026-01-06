@@ -32,8 +32,25 @@ interface GenerateStoryboardRequest {
     mode: GenerationMode;
 }
 
+interface CharacterInfo {
+    name: string;
+    description: string;
+}
+
+interface DialogueLine {
+    speaker: string;
+    text: string;
+}
+
+interface EnhancedStoryboardPanel {
+    panel: 1 | 2 | 3 | 4;
+    description: string;
+    dialogues: DialogueLine[];
+}
+
 interface GenerateStoryboardResponse {
-    storyboard: StoryboardPanel[];
+    characters: CharacterInfo[];
+    storyboard: EnhancedStoryboardPanel[];
 }
 
 // ===== Error Classes =====
@@ -138,7 +155,7 @@ async function generateStoryboard(
     userPrompt: string,
     model: string,
     language: string
-): Promise<StoryboardPanel[]> {
+): Promise<GenerateStoryboardResponse> {
     const lang = normalizeLanguage(language);
     const systemPrompt = getStoryboardSystemPrompt(lang);
 
@@ -183,15 +200,29 @@ ${userPrompt ? `補足指示:\n${userPrompt}` : ''}`;
     return parseStoryboardJson(textContent);
 }
 
-function parseStoryboardJson(text: string): StoryboardPanel[] {
-    const jsonMatch = text.match(/\[[\s\S]*?\]/);
-    if (!jsonMatch) {
+function parseStoryboardJson(text: string): GenerateStoryboardResponse {
+    // Try to parse as new format (object with characters and storyboard)
+    const objectMatch = text.match(/\{[\s\S]*\}/);
+    if (objectMatch) {
+        try {
+            const parsed = JSON.parse(objectMatch[0]);
+            if (parsed.characters && parsed.storyboard && Array.isArray(parsed.storyboard)) {
+                return parseEnhancedFormat(parsed);
+            }
+        } catch {
+            // Fall through to legacy format
+        }
+    }
+
+    // Legacy format: array of panels with dialogue string
+    const arrayMatch = text.match(/\[[\s\S]*?\]/);
+    if (!arrayMatch) {
         throw new GeminiError('絵コンテのJSONを取得できませんでした');
     }
 
     let parsed;
     try {
-        parsed = JSON.parse(jsonMatch[0]);
+        parsed = JSON.parse(arrayMatch[0]);
     } catch {
         throw new GeminiError('絵コンテのJSONのパースに失敗しました');
     }
@@ -200,20 +231,56 @@ function parseStoryboardJson(text: string): StoryboardPanel[] {
         throw new GeminiError('絵コンテは4つのパネルで構成される必要があります');
     }
 
-    return parsed.map((panel, index) => {
+    // Convert legacy format to new format
+    const storyboard: EnhancedStoryboardPanel[] = parsed.map((panel, index) => {
         const expectedPanel = index + 1;
         if (panel.panel !== expectedPanel) {
             panel.panel = expectedPanel;
         }
-        if (typeof panel.description !== 'string' || typeof panel.dialogue !== 'string') {
-            throw new GeminiError(`パネル${index + 1}の内容が不正です`);
-        }
+        const dialogue = typeof panel.dialogue === 'string' ? panel.dialogue : '';
         return {
             panel: panel.panel as 1 | 2 | 3 | 4,
-            description: panel.description,
-            dialogue: panel.dialogue,
+            description: typeof panel.description === 'string' ? panel.description : '',
+            dialogues: dialogue ? [{ speaker: '', text: dialogue }] : [],
         };
     });
+
+    return { characters: [], storyboard };
+}
+
+function parseEnhancedFormat(parsed: { characters?: unknown[]; storyboard?: unknown[] }): GenerateStoryboardResponse {
+    const characters: CharacterInfo[] = (parsed.characters || []).map((c: unknown) => {
+        const char = c as Record<string, unknown>;
+        return {
+            name: typeof char.name === 'string' ? char.name.trim() : '',
+            description: typeof char.description === 'string' ? char.description.trim() : '',
+        };
+    }).filter(c => c.name);
+
+    const storyboard: EnhancedStoryboardPanel[] = (parsed.storyboard || []).map((panel: unknown, index: number) => {
+        const p = panel as Record<string, unknown>;
+        const expectedPanel = index + 1;
+        const dialoguesRaw = Array.isArray(p.dialogues) ? p.dialogues : [];
+        const dialogues: DialogueLine[] = dialoguesRaw.map((d: unknown) => {
+            const dl = d as Record<string, unknown>;
+            return {
+                speaker: typeof dl.speaker === 'string' ? dl.speaker.trim() : '',
+                text: typeof dl.text === 'string' ? dl.text.trim() : '',
+            };
+        }).filter(d => d.text);
+
+        return {
+            panel: expectedPanel as 1 | 2 | 3 | 4,
+            description: typeof p.description === 'string' ? p.description : '',
+            dialogues,
+        };
+    });
+
+    if (storyboard.length !== 4) {
+        throw new GeminiError('絵コンテは4つのパネルで構成される必要があります');
+    }
+
+    return { characters, storyboard };
 }
 
 // ===== Request Handlers =====
@@ -295,7 +362,7 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
             apiKey = body.geminiApiKey;
         }
 
-        const storyboard = await generateStoryboard(
+        const result = await generateStoryboard(
             apiKey,
             body.inputText,
             body.userPrompt || '',
@@ -303,8 +370,7 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
             body.language || 'ja'
         );
 
-        const response: GenerateStoryboardResponse = { storyboard };
-        return jsonResponse(response, origin);
+        return jsonResponse(result, origin);
     } catch (error) {
         if (error instanceof ValidationError) {
             return errorResponse('VALIDATION_ERROR', error.message, 400, origin);

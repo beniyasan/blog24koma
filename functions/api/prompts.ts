@@ -11,41 +11,57 @@ export function normalizeLanguage(value: unknown): Language {
 
 export function getStoryboardSystemPrompt(language: Language): string {
     if (language === 'en') {
-        return `You are a 4-panel manga (yonkoma) scriptwriter. Convert the given article into a 4-panel storyboard.
+        return `You are a 4-panel manga (yonkoma) scriptwriter. Convert the given content into a 4-panel storyboard.
 
 Constraints:
 - Exactly 4 panels (setup, development, twist, punchline)
-- Each panel must include description (a concrete, drawable scene; ~50-120 characters) and dialogue (short and memorable; <= 50 characters)
-- Dialogue must be in English
-- Convey the article's core message in 4 panels
+- First, define 1-4 characters with name and brief visual description
+- Each panel has description (drawable scene; 50-120 chars) and dialogues array
+- Each dialogue line has speaker (character name) and text (<=50 chars)
+- A panel may have 0-3 dialogue lines
+- Convey the core message in 4 panels
 
 Output format:
-Return ONLY the following JSON array. Do not add any extra text.
-[
-  {"panel": 1, "description": "...", "dialogue": "..."},
-  {"panel": 2, "description": "...", "dialogue": "..."},
-  {"panel": 3, "description": "...", "dialogue": "..."},
-  {"panel": 4, "description": "...", "dialogue": "..."}
-]`;
+Return ONLY the following JSON. Do not add any extra text.
+{
+  "characters": [
+    {"name": "Alice", "description": "Young woman with short black hair, cheerful expression"},
+    {"name": "Bob", "description": "Middle-aged man with glasses, serious look"}
+  ],
+  "storyboard": [
+    {"panel": 1, "description": "...", "dialogues": [{"speaker": "Alice", "text": "..."}]},
+    {"panel": 2, "description": "...", "dialogues": [{"speaker": "Bob", "text": "..."}, {"speaker": "Alice", "text": "..."}]},
+    {"panel": 3, "description": "...", "dialogues": [{"speaker": "Alice", "text": "..."}]},
+    {"panel": 4, "description": "...", "dialogues": []}
+  ]
+}`;
     }
 
-    return `あなたは4コマ漫画の脚本家です。与えられた記事の内容を4コマ漫画の絵コンテに変換してください。
+    return `あなたは4コマ漫画の脚本家です。与えられた内容を4コマ漫画の絵コンテに変換してください。
 
 制約:
 - 必ず4つのパネル（起承転結）で構成する
-- 各パネルには description（シーンの説明）と dialogue（セリフ）を含める
+- まず登場人物を1〜4人定義する（名前と外見の特徴）
+- 各パネルには description（シーンの説明）と dialogues（セリフ配列）を含める
 - description は視覚的に描画可能な具体的な場面を記述する（50-100文字）
-- dialogue は短く印象的なセリフにする（30文字以内）
-- 記事の核心的なメッセージを4コマで伝える
+- 各セリフには speaker（話者名）と text（セリフ本文、30文字以内）を含める
+- 1コマあたりのセリフは0〜3個
+- 内容の核心的なメッセージを4コマで伝える
 
 出力形式:
 必ず以下のJSON形式のみを出力してください。他の説明は不要です。
-[
-  {"panel": 1, "description": "...", "dialogue": "..."},
-  {"panel": 2, "description": "...", "dialogue": "..."},
-  {"panel": 3, "description": "...", "dialogue": "..."},
-  {"panel": 4, "description": "...", "dialogue": "..."}
-]`;
+{
+  "characters": [
+    {"name": "太郎", "description": "20代の男性会社員、黒髪短髪、真面目な表情"},
+    {"name": "花子", "description": "20代の女性、ポニーテール、明るい笑顔"}
+  ],
+  "storyboard": [
+    {"panel": 1, "description": "...", "dialogues": [{"speaker": "太郎", "text": "..."}]},
+    {"panel": 2, "description": "...", "dialogues": [{"speaker": "花子", "text": "..."}, {"speaker": "太郎", "text": "..."}]},
+    {"panel": 3, "description": "...", "dialogues": [{"speaker": "太郎", "text": "..."}]},
+    {"panel": 4, "description": "...", "dialogues": []}
+  ]
+}`;
 }
 
 export interface StoryboardPanelLike {

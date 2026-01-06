@@ -18,11 +18,11 @@ test('normalizeLanguage accepts en/ja', () => {
   assert.equal(normalizeLanguage('ja'), 'ja');
 });
 
-test('en storyboard prompt enforces English output and JSON-only', () => {
+test('en storyboard prompt enforces JSON output and 4 panels', () => {
   const prompt = getStoryboardSystemPrompt('en');
   assert.match(prompt, /JSON/i);
-  assert.match(prompt, /English/i);
   assert.match(prompt, /Exactly 4/i);
+  assert.match(prompt, /characters/i);
 });
 
 test('ja storyboard prompt stays Japanese', () => {
