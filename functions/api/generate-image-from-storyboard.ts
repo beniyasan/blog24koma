@@ -23,8 +23,14 @@ const DEFAULT_IMAGE_MODEL = 'gemini-3-pro-image-preview';
 const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta';
 
 // ===== Request/Response Types =====
+interface CharacterInfo {
+    name: string;
+    description: string;
+}
+
 interface GenerateImageFromStoryboardRequest {
     storyboard: StoryboardPanel[];
+    characters?: CharacterInfo[];
     geminiApiKey?: string;
     modelSettings?: Pick<ModelSettings, 'imageModel'>;
     language?: Language;
@@ -84,8 +90,8 @@ function validateStoryboardPanel(panel: unknown, index: number): StoryboardPanel
         throw new ValidationError(`Panel ${expectedPanel}: dialogue must be a string`);
     }
 
-    if (p.dialogue.length > 200) {
-        throw new ValidationError(`Panel ${expectedPanel}: dialogue must be at most 200 characters`);
+    if (p.dialogue.length > 800) {
+        throw new ValidationError(`Panel ${expectedPanel}: dialogue must be at most 800 characters`);
     }
 
     return {
@@ -100,7 +106,7 @@ function validateRequest(body: unknown): GenerateImageFromStoryboardRequest {
         throw new ValidationError('Request body must be a JSON object');
     }
 
-    const { storyboard, geminiApiKey, modelSettings, mode, language } = body as Record<string, unknown>;
+    const { storyboard, characters, geminiApiKey, modelSettings, mode, language } = body as Record<string, unknown>;
 
     if (!Array.isArray(storyboard)) {
         throw new ValidationError('storyboard must be an array');
@@ -111,6 +117,37 @@ function validateRequest(body: unknown): GenerateImageFromStoryboardRequest {
     }
 
     const validatedStoryboard = storyboard.map((panel, index) => validateStoryboardPanel(panel, index));
+
+    let validatedCharacters: CharacterInfo[] | undefined;
+    if (characters !== undefined) {
+        if (!Array.isArray(characters)) {
+            throw new ValidationError('characters must be an array');
+        }
+        if (characters.length > 8) {
+            throw new ValidationError('characters must be at most 8');
+        }
+
+        validatedCharacters = characters.map((c, index) => {
+            if (!c || typeof c !== 'object') {
+                throw new ValidationError(`Character ${index + 1} must be an object`);
+            }
+            const obj = c as Record<string, unknown>;
+            const name = typeof obj.name === 'string' ? obj.name.trim() : '';
+            const description = typeof obj.description === 'string' ? obj.description.trim() : '';
+
+            if (!name) {
+                throw new ValidationError(`Character ${index + 1}: name is required`);
+            }
+            if (name.length > 50) {
+                throw new ValidationError(`Character ${index + 1}: name must be at most 50 characters`);
+            }
+            if (description.length > 200) {
+                throw new ValidationError(`Character ${index + 1}: description must be at most 200 characters`);
+            }
+
+            return { name, description };
+        });
+    }
 
     const validModes = ['demo', 'lite', 'pro', 'byok'];
     const requestMode = (mode as string) || 'byok';
@@ -145,6 +182,7 @@ function validateRequest(body: unknown): GenerateImageFromStoryboardRequest {
 
     return {
         storyboard: validatedStoryboard,
+        characters: validatedCharacters,
         geminiApiKey: (geminiApiKey as string)?.trim(),
         modelSettings: (modelSettings as GenerateImageFromStoryboardRequest['modelSettings']) || {
             imageModel: DEFAULT_IMAGE_MODEL,
@@ -159,9 +197,10 @@ async function generate4KomaImage(
     apiKey: string,
     storyboard: StoryboardPanel[],
     model: string,
-    language: string
+    language: string,
+    characters?: CharacterInfo[]
 ): Promise<string> {
-    const prompt = getImagePrompt(normalizeLanguage(language), storyboard);
+    const prompt = getImagePrompt(normalizeLanguage(language), storyboard, { characters });
 
     const response = await fetch(
         `${GEMINI_API_BASE}/models/${model}:generateContent`,
@@ -288,7 +327,8 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
             apiKey,
             body.storyboard,
             body.modelSettings?.imageModel || DEFAULT_IMAGE_MODEL,
-            body.language || 'ja'
+            body.language || 'ja',
+            body.characters
         );
 
         if (isDemo) {

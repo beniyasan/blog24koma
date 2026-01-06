@@ -4,6 +4,7 @@ import { ModeSelector } from '../components/ModeSelector';
 import { DemoLimitDisplay } from '../components/DemoLimitDisplay';
 import { ApiKeyModal } from '../components/ApiKeyModal';
 import { ModelSettingsModal } from '../components/ModelSettingsModal';
+import { CharactersEditor } from '../components/CharactersEditor';
 import { StoryboardEditor } from '../components/StoryboardEditor';
 import { LoadingSpinner } from '../components/LoadingSpinner';
 import { ErrorDisplay } from '../components/ErrorDisplay';
@@ -14,16 +15,55 @@ import { useAuth } from '../hooks/useAuth';
 import { useLanguage } from '../hooks/useLanguage';
 import { analytics, EVENTS } from '../utils/analytics';
 import { t } from '../i18n';
-import type { StoryboardPanel, GenerationMode, ModelSettings, DemoStatus } from '../types';
+import type {
+    StoryboardPanel,
+    GenerationMode,
+    ModelSettings,
+    DemoStatus,
+    CustomStoryboardPanel,
+    CustomDialogueLine,
+    CustomCharacter,
+} from '../types';
 import './CustomPage.css';
 
 type CustomStep = 'input' | 'edit' | 'result';
 
-const DEFAULT_STORYBOARD: StoryboardPanel[] = [
-    { panel: 1, description: '', dialogue: '' },
-    { panel: 2, description: '', dialogue: '' },
-    { panel: 3, description: '', dialogue: '' },
-    { panel: 4, description: '', dialogue: '' },
+function makeId(): string {
+    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+        return crypto.randomUUID();
+    }
+    return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function buildDialogueText(dialogues: CustomDialogueLine[]): string {
+    return dialogues
+        .map((d) => ({ speaker: d.speaker.trim(), text: d.text.trim() }))
+        .filter((d) => d.text)
+        .map((d) => (d.speaker ? `${d.speaker}: ${d.text}` : d.text))
+        .join('\n');
+}
+
+function toCustomStoryboard(panels: StoryboardPanel[]): CustomStoryboardPanel[] {
+    return panels.map((p) => ({
+        panel: p.panel,
+        description: p.description,
+        dialogues: [{ id: makeId(), speaker: '', text: p.dialogue }],
+    }));
+}
+
+function toApiStoryboard(panels: CustomStoryboardPanel[]): StoryboardPanel[] {
+    return panels.map((p) => ({
+        panel: p.panel,
+        description: p.description,
+        dialogue: buildDialogueText(p.dialogues),
+    }));
+}
+
+const DEFAULT_STORYBOARD: CustomStoryboardPanel[] = [
+    { panel: 1, description: '', dialogues: [{ id: 'p1-1', speaker: '', text: '' }] },
+    { panel: 2, description: '', dialogues: [{ id: 'p2-1', speaker: '', text: '' }] },
+    { panel: 3, description: '', dialogues: [{ id: 'p3-1', speaker: '', text: '' }] },
+    { panel: 4, description: '', dialogues: [{ id: 'p4-1', speaker: '', text: '' }] },
 ];
 
 export function CustomPage() {
@@ -35,7 +75,8 @@ export function CustomPage() {
     const [step, setStep] = useState<CustomStep>('input');
     const [inputText, setInputText] = useState('');
     const [userPrompt, setUserPrompt] = useState('');
-    const [storyboard, setStoryboard] = useState<StoryboardPanel[]>(DEFAULT_STORYBOARD);
+    const [storyboard, setStoryboard] = useState<CustomStoryboardPanel[]>(DEFAULT_STORYBOARD);
+    const [characters, setCharacters] = useState<CustomCharacter[]>([]);
     const [imageBase64, setImageBase64] = useState<string | null>(null);
 
     const [isApiKeyModalOpen, setIsApiKeyModalOpen] = useState(false);
@@ -83,7 +124,7 @@ export function CustomPage() {
         });
 
         if (result) {
-            setStoryboard(result);
+            setStoryboard(toCustomStoryboard(result));
             setStep('edit');
         }
     }, [inputText, userPrompt, modelSettings.storyboardModel, language, mode, generateStoryboard]);
@@ -91,8 +132,14 @@ export function CustomPage() {
     const handleGenerateImage = useCallback(async (apiKey?: string) => {
         analytics.track(EVENTS.CLICK_GENERATE, { mode, step: 'image' });
 
+        const apiStoryboard = toApiStoryboard(storyboard);
+        const apiCharacters = characters
+            .map((c) => ({ name: c.name.trim(), description: c.description.trim() }))
+            .filter((c) => c.name);
+
         const result = await generateImage({
-            storyboard,
+            storyboard: apiStoryboard,
+            characters: apiCharacters.length > 0 ? apiCharacters : undefined,
             geminiApiKey: apiKey,
             modelSettings: { imageModel: modelSettings.imageModel },
             language,
@@ -104,7 +151,7 @@ export function CustomPage() {
             setStep('result');
             analytics.track(EVENTS.GENERATION_SUCCESS);
         }
-    }, [storyboard, modelSettings.imageModel, language, mode, generateImage]);
+    }, [storyboard, characters, modelSettings.imageModel, language, mode, generateImage]);
 
     const handleStoryboardSubmit = () => {
         if (mode === 'byok') {
@@ -151,6 +198,7 @@ export function CustomPage() {
         setInputText('');
         setUserPrompt('');
         setStoryboard(DEFAULT_STORYBOARD);
+        setCharacters([]);
         setImageBase64(null);
         resetStoryboard();
         resetImage();
@@ -303,11 +351,23 @@ export function CustomPage() {
                 {/* Step 2: Edit Storyboard */}
                 {step === 'edit' && !isLoading && (
                     <div className="custom-edit-container">
-                        <StoryboardEditor
-                            storyboard={storyboard}
-                            onChange={setStoryboard}
-                            disabled={isLoading}
-                        />
+                        <div className="custom-edit-layout">
+                            <div className="custom-edit-main">
+                                <StoryboardEditor
+                                    storyboard={storyboard}
+                                    onChange={setStoryboard}
+                                    characterNames={characters.map((c) => c.name).filter((n) => n.trim())}
+                                    disabled={isLoading}
+                                />
+                            </div>
+                            <div className="custom-edit-sidebar">
+                                <CharactersEditor
+                                    characters={characters}
+                                    onChange={setCharacters}
+                                    disabled={isLoading}
+                                />
+                            </div>
+                        </div>
 
                         <div className="custom-actions">
                             <button

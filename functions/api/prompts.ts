@@ -54,12 +54,27 @@ export interface StoryboardPanelLike {
     dialogue: string;
 }
 
-export function getImagePrompt(language: Language, storyboard: StoryboardPanelLike[]): string {
+interface CharacterLike {
+    name: string;
+    description?: string;
+}
+
+export function getImagePrompt(
+    language: Language,
+    storyboard: StoryboardPanelLike[],
+    options: { characters?: CharacterLike[] } = {}
+): string {
     if (language === 'en') {
+        const charactersSection = (options.characters || [])
+            .map((c) => ({ name: (c.name || '').trim(), description: (c.description || '').trim() }))
+            .filter((c) => c.name)
+            .map((c) => `- ${c.name}${c.description ? `: ${c.description}` : ''}`)
+            .join('\n');
+
         const panelDescriptions = storyboard
             .map(
                 (panel) =>
-                    `[Panel ${panel.panel}]\nScene: ${panel.description}\nDialogue: "${panel.dialogue}"`
+                    `[Panel ${panel.panel}]\nScene: ${panel.description}\nDialogue:\n${panel.dialogue}`
             )
             .join('\n\n');
 
@@ -79,16 +94,26 @@ export function getImagePrompt(language: Language, storyboard: StoryboardPanelLi
 [Important]
 - Show dialogue inside speech bubbles within each panel
 - Dialogue must be in English with a readable font
+- If multiple dialogue lines are provided, render them as separate speech bubbles (keep speaker names if included)
+- If a panel has no dialogue, you may omit speech bubbles for that panel
 - Keep the classic setup→punchline flow
+
+${charactersSection ? `[Characters]\n${charactersSection}\n` : ''}
 
 [Panels]
 ${panelDescriptions}`;
     }
 
+    const charactersSection = (options.characters || [])
+        .map((c) => ({ name: (c.name || '').trim(), description: (c.description || '').trim() }))
+        .filter((c) => c.name)
+        .map((c) => `- ${c.name}${c.description ? `: ${c.description}` : ''}`)
+        .join('\n');
+
     const panelDescriptions = storyboard
         .map(
             (panel) =>
-                `【コマ${panel.panel}】\nシーン: ${panel.description}\nセリフ: 「${panel.dialogue}」`
+                `【コマ${panel.panel}】\nシーン: ${panel.description}\nセリフ:\n${panel.dialogue}`
         )
         .join('\n\n');
 
@@ -108,7 +133,11 @@ ${panelDescriptions}`;
 【重要】
 - 各コマ内にセリフを吹き出しで表示すること
 - セリフは日本語で、読みやすいフォントで描くこと
+- セリフが複数行ある場合は、行ごとに別の吹き出しにする（話者名があれば残す）
+- セリフが空のコマは、吹き出しを省略してよい
 - 起承転結の流れを意識した構成
+
+${charactersSection ? `【登場人物】\n${charactersSection}\n\n` : ''}
 
 【各コマの内容】
 ${panelDescriptions}`;

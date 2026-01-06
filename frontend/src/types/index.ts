@@ -46,6 +46,24 @@ export interface StoryboardPanel {
   dialogue: string;
 }
 
+export interface CustomCharacter {
+  id: string;
+  name: string;
+  description: string;
+}
+
+export interface CustomDialogueLine {
+  id: string;
+  speaker: string;
+  text: string;
+}
+
+export interface CustomStoryboardPanel {
+  panel: 1 | 2 | 3 | 4;
+  description: string;
+  dialogues: CustomDialogueLine[];
+}
+
 export interface ImagePanel {
   panel: 1 | 2 | 3 | 4;
   imageBase64: string;

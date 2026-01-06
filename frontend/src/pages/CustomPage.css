@@ -95,8 +95,26 @@
 
 /* Edit container */
 .custom-edit-container {
-    max-width: 800px;
+    max-width: 1200px;
     margin: 0 auto;
+}
+
+.custom-edit-layout {
+    display: grid;
+    gap: var(--spacing-lg);
+}
+
+@media (min-width: 1000px) {
+    .custom-edit-layout {
+        grid-template-columns: 1fr 380px;
+        align-items: start;
+    }
+
+    .custom-edit-sidebar {
+        position: sticky;
+        top: var(--spacing-lg);
+        align-self: start;
+    }
 }
 
 .custom-actions {

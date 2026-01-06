@@ -1,8 +1,14 @@
 import { useState, useCallback } from 'react';
 import type { StoryboardPanel, GenerationMode, ModelSettings, Language, ApiError } from '../types';
 
+interface CharacterInfo {
+    name: string;
+    description: string;
+}
+
 interface GenerateImageParams {
     storyboard: StoryboardPanel[];
+    characters?: CharacterInfo[];
     geminiApiKey?: string;
     modelSettings?: Pick<ModelSettings, 'imageModel'>;
     language?: Language;
